@@ -7,8 +7,13 @@ import sys
 import yaml
 from flask import Flask, current_app, jsonify, request
 
-from src.grafana_mcp_server.processor.grafana_processor import GrafanaApiProcessor
-from src.grafana_mcp_server.stdio_server import run_stdio_server
+try:
+    from src.grafana_mcp_server.processor.grafana_processor import GrafanaApiProcessor
+    from src.grafana_mcp_server.stdio_server import run_stdio_server
+except ImportError:
+    # Fallback for when running the file directly
+    from processor.grafana_processor import GrafanaApiProcessor
+    from stdio_server import run_stdio_server
 
 app = Flask(__name__)
 logger = logging.getLogger(__name__)
