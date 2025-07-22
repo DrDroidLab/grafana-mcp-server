@@ -2,6 +2,7 @@ import logging
 import requests
 import json
 import datetime
+import re
 from typing import Optional, Dict, List, Any
 
 logger = logging.getLogger(__name__)
@@ -76,26 +77,131 @@ class GrafanaApiProcessor(Processor):
             logger.error(f"Exception occurred while fetching grafana data sources with error: {e}")
             raise e
 
-    def grafana_promql_query(self, datasource_uid: str, query: str) -> Dict[str, Any]:
+    def _get_time_range(self, start_time=None, end_time=None, duration=None, default_hours=3):
+        """
+        Returns (start_dt, end_dt) as UTC datetimes.
+        - If start_time and end_time are provided, use those.
+        - Else if duration is provided, use (now - duration, now).
+        - Else, use (now - default_hours, now).
+        """
+        now_dt = datetime.datetime.now(datetime.timezone.utc)
+        if start_time and end_time:
+            start_dt = self._parse_time(start_time)
+            end_dt = self._parse_time(end_time)
+            if not start_dt or not end_dt:
+                start_dt = now_dt - datetime.timedelta(hours=default_hours)
+                end_dt = now_dt
+        elif duration:
+            dur_ms = self._parse_duration(duration)
+            if dur_ms is None:
+                dur_ms = default_hours * 60 * 60 * 1000
+            start_dt = now_dt - datetime.timedelta(milliseconds=dur_ms)
+            end_dt = now_dt
+        else:
+            start_dt = now_dt - datetime.timedelta(hours=default_hours)
+            end_dt = now_dt
+        return start_dt, end_dt
+
+    def _parse_duration(self, duration_str):
+        """Parse duration string like '2h', '90m' into milliseconds."""
+        if not duration_str or not isinstance(duration_str, str):
+            return None
+        match = re.match(r"^(\d+)([smhd])$", duration_str.strip().lower())
+        if match:
+            value, unit = match.groups()
+            value = int(value)
+            if unit == "s":
+                return value * 1000
+            elif unit == "m":
+                return value * 60 * 1000
+            elif unit == "h":
+                return value * 60 * 60 * 1000
+            elif unit == "d":
+                return value * 24 * 60 * 60 * 1000
+        try:
+            # fallback: try to parse as integer minutes
+            value = int(duration_str)
+            return value * 60 * 1000
+        except Exception as e:
+            logger.error(f"_parse_duration: Exception parsing '{duration_str}': {e}")
+        return None
+
+    def _parse_time(self, time_str):
+        """
+        Parse a time string in RFC3339, 'now', or 'now-2h', 'now-30m', etc. Returns a UTC datetime.
+        """
+        if not time_str or not isinstance(time_str, str):
+            logger.error(f"_parse_time: Invalid input (not a string): {time_str}")
+            return None
+        time_str_orig = time_str
+        time_str = time_str.strip().lower()
+        if time_str.startswith("now"):
+            if "-" in time_str:
+                match = re.match(r"now-(\d+)([smhd])", time_str)
+                if match:
+                    value, unit = match.groups()
+                    value = int(value)
+                    if unit == "s":
+                        delta = datetime.timedelta(seconds=value)
+                    elif unit == "m":
+                        delta = datetime.timedelta(minutes=value)
+                    elif unit == "h":
+                        delta = datetime.timedelta(hours=value)
+                    elif unit == "d":
+                        delta = datetime.timedelta(days=value)
+                    else:
+                        delta = datetime.timedelta()
+                    logger.debug(f"_parse_time: Parsed relative time '{time_str_orig}' as now - {value}{unit}")
+                    return datetime.datetime.now(datetime.timezone.utc) - delta
+            logger.debug(f"_parse_time: Parsed 'now' as current UTC time for input '{time_str_orig}'")
+            return datetime.datetime.now(datetime.timezone.utc)
+        else:
+            try:
+                # Try parsing as RFC3339 or other datetime formats
+                dt = datetime.datetime.fromisoformat(time_str_orig.replace('Z', '+00:00'))
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=datetime.timezone.utc)
+                logger.debug(f"_parse_time: Successfully parsed '{time_str_orig}' as {dt.isoformat()}")
+                return dt.astimezone(datetime.timezone.utc)
+            except Exception as e:
+                logger.error(f"_parse_time: Exception parsing '{time_str_orig}': {e}")
+                return None
+
+    def grafana_promql_query(self, datasource_uid: str, query: str, start_time: str = None, end_time: str = None, duration: str = None) -> Dict[str, Any]:
         """
         Executes PromQL queries against Grafana's Prometheus datasource.
         
         Args:
             datasource_uid: Prometheus datasource UID
             query: PromQL query string
+            start_time: Start time in RFC3339 or relative string (e.g., 'now-2h', '2023-01-01T00:00:00Z')
+            end_time: End time in RFC3339 or relative string (e.g., 'now-2h', '2023-01-01T00:00:00Z')
+            duration: Duration string for the time window (e.g., '2h', '90m')
             
         Returns:
             Dict containing query results with optimized time series data
         """
         try:
-            # Calculate time range (last 1 hour by default)
-            end_time = datetime.datetime.now()
-            start_time = end_time - datetime.timedelta(hours=1)
+            # Use standardized time range logic
+            start_dt, end_dt = self._get_time_range(start_time, end_time, duration, default_hours=3)
+            
+            # Convert to milliseconds since epoch (Grafana format)
+            start_ms = int(start_dt.timestamp() * 1000)
+            end_ms = int(end_dt.timestamp() * 1000)
             
             payload = {
                 "queries": [{
                     "refId": "A",
                     "expr": query,
+                    "editorMode": "code",
+                    "legendFormat": "__auto",
+                    "range": True,
+                    "exemplar": False,
+                    "requestId": "A",
+                    "utcOffsetSec": 0,
+                    "scopes": [],
+                    "adhocFilters": [],
+                    "interval": "",
                     "datasource": {
                         "type": "prometheus",
                         "uid": datasource_uid
@@ -103,12 +209,12 @@ class GrafanaApiProcessor(Processor):
                     "intervalMs": 30000,
                     "maxDataPoints": 1000
                 }],
-                "from": start_time.isoformat(),
-                "to": end_time.isoformat()
+                "from": str(start_ms),
+                "to": str(end_ms)
             }
             
             url = f"{self.__host}/api/ds/query"
-            logger.info(f"Executing PromQL query: {query}")
+            logger.info(f"Executing PromQL query: {query} from {start_dt.isoformat()} to {end_dt.isoformat()}")
             
             response = requests.post(url, headers=self.headers, json=payload, verify=self.__ssl_verify, timeout=30)
             
@@ -119,6 +225,9 @@ class GrafanaApiProcessor(Processor):
                 return {
                     "status": "success",
                     "query": query,
+                    "start_time": start_dt.isoformat(),
+                    "end_time": end_dt.isoformat(),
+                    "duration": duration,
                     "results": optimized_data
                 }
             else:
@@ -128,22 +237,27 @@ class GrafanaApiProcessor(Processor):
             logger.error(f"Error executing PromQL query: {str(e)}")
             raise e
 
-    def grafana_loki_query(self, query: str, duration: str, limit: int = 100) -> Dict[str, Any]:
+    def grafana_loki_query(self, query: str, duration: str = None, start_time: str = None, end_time: str = None, limit: int = 100) -> Dict[str, Any]:
         """
         Queries Grafana Loki for log data.
         
         Args:
             query: Loki query string
-            duration: Time duration (e.g., '5m', '1h', '2d')
+            duration: Time duration (e.g., '5m', '1h', '2d') - overrides start_time/end_time if provided
+            start_time: Start time in RFC3339 or relative string (e.g., 'now-2h', '2023-01-01T00:00:00Z')
+            end_time: End time in RFC3339 or relative string (e.g., 'now-2h', '2023-01-01T00:00:00Z')
             limit: Maximum number of log entries to return
             
         Returns:
             Dict containing log data from Loki datasource
         """
         try:
-            # Convert relative time to absolute timestamps
-            end_time = datetime.datetime.now()
-            start_time = self._parse_duration_to_start_time(duration, end_time)
+            # Use standardized time range logic
+            start_dt, end_dt = self._get_time_range(start_time, end_time, duration, default_hours=1)
+            
+            # Convert to milliseconds since epoch (Grafana format)
+            start_ms = int(start_dt.timestamp() * 1000)
+            end_ms = int(end_dt.timestamp() * 1000)
             
             payload = {
                 "queries": [{
@@ -154,12 +268,12 @@ class GrafanaApiProcessor(Processor):
                     },
                     "maxLines": limit
                 }],
-                "from": start_time.isoformat(),
-                "to": end_time.isoformat()
+                "from": str(start_ms),
+                "to": str(end_ms)
             }
             
             url = f"{self.__host}/api/ds/query"
-            logger.info(f"Executing Loki query: {query} for duration: {duration}")
+            logger.info(f"Executing Loki query: {query} from {start_dt.isoformat()} to {end_dt.isoformat()}")
             
             response = requests.post(url, headers=self.headers, json=payload, verify=self.__ssl_verify, timeout=30)
             
@@ -168,6 +282,8 @@ class GrafanaApiProcessor(Processor):
                 return {
                     "status": "success",
                     "query": query,
+                    "start_time": start_dt.isoformat(),
+                    "end_time": end_dt.isoformat(),
                     "duration": duration,
                     "limit": limit,
                     "results": data
@@ -284,10 +400,24 @@ class GrafanaApiProcessor(Processor):
             # This approach is more reliable than trying to use label_values function
             query = f'up{{{label_name}=~".+"}}'
             
+            # Get time range (last 1 hour)
+            start_dt, end_dt = self._get_time_range(None, None, "1h", default_hours=1)
+            start_ms = int(start_dt.timestamp() * 1000)
+            end_ms = int(end_dt.timestamp() * 1000)
+            
             payload = {
                 "queries": [{
                     "refId": "A",
                     "expr": query,
+                    "editorMode": "code",
+                    "legendFormat": "__auto",
+                    "range": True,
+                    "exemplar": False,
+                    "requestId": "A",
+                    "utcOffsetSec": 0,
+                    "scopes": [],
+                    "adhocFilters": [],
+                    "interval": "",
                     "datasource": {
                         "type": "prometheus",
                         "uid": datasource_uid
@@ -295,8 +425,8 @@ class GrafanaApiProcessor(Processor):
                     "intervalMs": 30000,
                     "maxDataPoints": 1000
                 }],
-                "from": (datetime.datetime.now() - datetime.timedelta(hours=1)).isoformat(),
-                "to": datetime.datetime.now().isoformat()
+                "from": str(start_ms),
+                "to": str(end_ms)
             }
             
             url = f"{self.__host}/api/ds/query"
@@ -647,21 +777,7 @@ class GrafanaApiProcessor(Processor):
             logger.error(f"Error fetching annotations: {str(e)}")
             raise e
 
-    def _parse_duration_to_start_time(self, duration: str, end_time: datetime.datetime) -> datetime.datetime:
-        """Convert duration string to start time"""
-        duration = duration.lower()
-        if duration.endswith('m'):
-            minutes = int(duration[:-1])
-            return end_time - datetime.timedelta(minutes=minutes)
-        elif duration.endswith('h'):
-            hours = int(duration[:-1])
-            return end_time - datetime.timedelta(hours=hours)
-        elif duration.endswith('d'):
-            days = int(duration[:-1])
-            return end_time - datetime.timedelta(days=days)
-        else:
-            # Default to 1 hour
-            return end_time - datetime.timedelta(hours=1)
+
 
     def _optimize_time_series_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Optimize time series data to reduce token size"""

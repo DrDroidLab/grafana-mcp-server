@@ -124,7 +124,19 @@ TOOLS_LIST = [
             "type": "object", 
             "properties": {
                 "datasource_uid": {"type": "string", "description": "Prometheus datasource UID"},
-                "query": {"type": "string", "description": "PromQL query string"}
+                "query": {"type": "string", "description": "PromQL query string"},
+                "start_time": {
+                    "type": "string", 
+                    "description": "Start time in RFC3339 or relative string (e.g., 'now-2h', '2023-01-01T00:00:00Z')"
+                },
+                "end_time": {
+                    "type": "string", 
+                    "description": "End time in RFC3339 or relative string (e.g., 'now-2h', '2023-01-01T00:00:00Z')"
+                },
+                "duration": {
+                    "type": "string", 
+                    "description": "Duration string for the time window (e.g., '2h', '90m')"
+                }
             },
             "required": ["datasource_uid", "query"]
         },
@@ -136,10 +148,18 @@ TOOLS_LIST = [
             "type": "object", 
             "properties": {
                 "query": {"type": "string", "description": "Loki query string"},
-                "duration": {"type": "string", "description": "Time duration (e.g., '5m', '1h', '2d')"},
+                "duration": {"type": "string", "description": "Time duration (e.g., '5m', '1h', '2d') - overrides start_time/end_time if provided"},
+                "start_time": {
+                    "type": "string", 
+                    "description": "Start time in RFC3339 or relative string (e.g., 'now-2h', '2023-01-01T00:00:00Z')"
+                },
+                "end_time": {
+                    "type": "string", 
+                    "description": "End time in RFC3339 or relative string (e.g., 'now-2h', '2023-01-01T00:00:00Z')"
+                },
                 "limit": {"type": "integer", "description": "Maximum number of log entries to return", "default": 100}
             },
-            "required": ["query", "duration"]
+            "required": ["query"]
         },
     },
     {
@@ -280,28 +300,28 @@ def test_grafana_connection():
         return {"status": "error", "message": f"Failed to connect to Grafana: {str(e)}"}
 
 
-def grafana_promql_query(datasource_uid, query):
+def grafana_promql_query(datasource_uid, query, start_time=None, end_time=None, duration=None):
     """Execute PromQL query against Grafana's Prometheus datasource"""
     try:
         grafana_processor = current_app.config.get("grafana_processor")
         if not grafana_processor:
             return {"status": "error", "message": "Grafana processor not initialized. Check configuration."}
         
-        result = grafana_processor.grafana_promql_query(datasource_uid, query)
+        result = grafana_processor.grafana_promql_query(datasource_uid, query, start_time, end_time, duration)
         return result
     except Exception as e:
         logger.error(f"Error executing PromQL query: {str(e)}")
         return {"status": "error", "message": f"PromQL query failed: {str(e)}"}
 
 
-def grafana_loki_query(query, duration, limit=100):
+def grafana_loki_query(query, duration=None, start_time=None, end_time=None, limit=100):
     """Query Grafana Loki for log data"""
     try:
         grafana_processor = current_app.config.get("grafana_processor")
         if not grafana_processor:
             return {"status": "error", "message": "Grafana processor not initialized. Check configuration."}
         
-        result = grafana_processor.grafana_loki_query(query, duration, limit)
+        result = grafana_processor.grafana_loki_query(query, duration, start_time, end_time, limit)
         return result
     except Exception as e:
         logger.error(f"Error executing Loki query: {str(e)}")
