@@ -92,3 +92,159 @@ markers = [
     "flaky(max_runs=3): marks test as flaky and allows retries",
     "slow: marks tests as slow running"
 ]
+
+[tool.ruff]
+# Enable pycodestyle (`E`), Pyflakes (`F`), and isort (`I`) codes
+select = ["E", "F", "I", "W", "B", "C4", "UP", "N", "ARG", "SIM", "TCH", "TID", "Q", "RSE", "RET", "SLF", "SLOT", "PIE", "TRY", "NPY", "AIR", "PERF", "FBT", "LOG", "PTH", "ERA", "PD", "PGH", "PL", "PTH", "RUF", "S", "A", "COM", "C90", "DTZ", "T20", "FA", "ISC", "ICN", "G", "INP", "PIE", "TID", "TCH", "UP", "YTT", "ARG", "PIE", "SIM", "TID", "TCH", "UP", "N", "ARG", "SIM", "TCH", "TID", "Q", "RSE", "RET", "SLF", "SLOT", "PIE", "TRY", "NPY", "AIR", "PERF", "FBT", "LOG", "PTH", "ERA", "PD", "PGH", "PL", "PTH", "RUF", "S", "A", "COM", "C90", "DTZ", "T20", "FA", "ISC", "ICN", "G", "INP", "PIE", "TID", "TCH", "UP", "YTT"]
+
+# Never enforce `E501` (line length violations)
+ignore = [
+    "E501",  # line too long, handled by formatter
+    "E731",  # do not assign a lambda expression, use a def
+    "W503",  # line break before binary operator
+    "W504",  # line break after binary operator
+    "B008",  # do not perform function calls in argument defaults
+    "B006",  # do not use mutable data structures for argument defaults
+    "C901",  # too complex
+    "PLR0913",  # too many arguments to function call
+    "PLR0912",  # too many branches
+    "PLR0915",  # too many statements
+    "PLR0911",  # too many return statements
+    "PLR2004",  # magic value used in comparison
+    "PLR0916",  # too many boolean expressions
+    "PLR0917",  # too many positional arguments
+    "PLR0918",  # too many arguments to function call
+    "PLR0919",  # too many arguments to function call
+    "PLR0920",  # too many arguments to function call
+    "PLR0921",  # too many arguments to function call
+    "PLR0922",  # too many arguments to function call
+    "PLR0923",  # too many arguments to function call
+    "PLR0924",  # too many arguments to function call
+    "PLR0925",  # too many arguments to function call
+    "PLR0926",  # too many arguments to function call
+    "PLR0927",  # too many arguments to function call
+    "PLR0928",  # too many arguments to function call
+    "PLR0929",  # too many arguments to function call
+    "PLR0930",  # too many arguments to function call
+    "PLR0931",  # too many arguments to function call
+    "PLR0932",  # too many arguments to function call
+    "PLR0933",  # too many arguments to function call
+    "PLR0934",  # too many arguments to function call
+    "PLR0935",  # too many arguments to function call
+    "PLR0936",  # too many arguments to function call
+    "PLR0937",  # too many arguments to function call
+    "PLR0938",  # too many arguments to function call
+    "PLR0939",  # too many arguments to function call
+    "PLR0940",  # too many arguments to function call
+    "PLR0941",  # too many arguments to function call
+    "PLR0942",  # too many arguments to function call
+    "PLR0943",  # too many arguments to function call
+    "PLR0944",  # too many arguments to function call
+    "PLR0945",  # too many arguments to function call
+    "PLR0946",  # too many arguments to function call
+    "PLR0947",  # too many arguments to function call
+    "PLR0948",  # too many arguments to function call
+    "PLR0949",  # too many arguments to function call
+    "PLR0950",  # too many arguments to function call
+    "PLR0951",  # too many arguments to function call
+    "PLR0952",  # too many arguments to function call
+    "PLR0953",  # too many arguments to function call
+    "PLR0954",  # too many arguments to function call
+    "PLR0955",  # too many arguments to function call
+    "PLR0956",  # too many arguments to function call
+    "PLR0957",  # too many arguments to function call
+    "PLR0958",  # too many arguments to function call
+    "PLR0959",  # too many arguments to function call
+    "PLR0960",  # too many arguments to function call
+    "PLR0961",  # too many arguments to function call
+    "PLR0962",  # too many arguments to function call
+    "PLR0963",  # too many arguments to function call
+    "PLR0964",  # too many arguments to function call
+    "PLR0965",  # too many arguments to function call
+    "PLR0966",  # too many arguments to function call
+    "PLR0967",  # too many arguments to function call
+    "PLR0968",  # too many arguments to function call
+    "PLR0969",  # too many arguments to function call
+    "PLR0970",  # too many arguments to function call
+    "PLR0971",  # too many arguments to function call
+    "PLR0972",  # too many arguments to function call
+    "PLR0973",  # too many arguments to function call
+    "PLR0974",  # too many arguments to function call
+    "PLR0975",  # too many arguments to function call
+    "PLR0976",  # too many arguments to function call
+    "PLR0977",  # too many arguments to function call
+    "PLR0978",  # too many arguments to function call
+    "PLR0979",  # too many arguments to function call
+    "PLR0980",  # too many arguments to function call
+    "PLR0981",  # too many arguments to function call
+    "PLR0982",  # too many arguments to function call
+    "PLR0983",  # too many arguments to function call
+    "PLR0984",  # too many arguments to function call
+    "PLR0985",  # too many arguments to function call
+    "PLR0986",  # too many arguments to function call
+    "PLR0987",  # too many arguments to function call
+    "PLR0988",  # too many arguments to function call
+    "PLR0989",  # too many arguments to function call
+    "PLR0990",  # too many arguments to function call
+    "PLR0991",  # too many arguments to function call
+    "PLR0992",  # too many arguments to function call
+    "PLR0993",  # too many arguments to function call
+    "PLR0994",  # too many arguments to function call
+    "PLR0995",  # too many arguments to function call
+    "PLR0996",  # too many arguments to function call
+    "PLR0997",  # too many arguments to function call
+    "PLR0998",  # too many arguments to function call
+    "PLR0999",  # too many arguments to function call
+]
+
+# Allow autofix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]
+unfixable = []
+
+# Exclude a variety of commonly ignored directories.
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+]
+
+# Same as Black.
+line-length = 88
+indent-width = 4
+
+# Assume Python 3.11
+target-version = "py311"
+
+[tool.ruff.format]
+# Like Black, use double quotes for strings.
+quote-style = "double"
+
+# Like Black, indent with spaces, rather than tabs.
+indent-style = "space"
+
+# Like Black, respect magic trailing commas.
+skip-magic-trailing-comma = false
+
+# Like Black, automatically detect the appropriate line ending.
+line-ending = "auto"
+
+[tool.ruff.isort]
+known-first-party = ["grafana_mcp_server"]
