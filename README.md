@@ -1,7 +1,5 @@
 # Grafana MCP Server
 
-Watch Working Demo on Cursor 📽️ [Add your demo video link here]
-
 ## Available Tools
 
 The following tools are available via the MCP server:
@@ -44,7 +42,7 @@ uv sync
 #### 2A.2. Run the server with uv
 
 ```bash
-uv run -m src.grafana_mcp_server.mcp_server
+uv run grafana-mcp-server/src/grafana_mcp_server/mcp_server.py
 ```
 
 - You can also use `uv` to run any other entrypoint scripts as needed.
@@ -57,7 +55,7 @@ uv run -m src.grafana_mcp_server.mcp_server
 1. Edit `grafana-mcp-server/src/grafana_mcp_server/config.yaml` with your Grafana details (host, API key).
 2. Start the server:
    ```bash
-   docker-compose up -d
+   docker compose up -d
    ```
    - The server will run in HTTP (SSE) mode on port 8000 by default.
    - You can override configuration with environment variables (see below).
@@ -233,21 +231,6 @@ The server runs on port 8000 by default.
 
 ---
 
-## 5. Testing Connection
-
-You can test your Grafana connection using the provided test script:
-
-```bash
-# Set your API key as environment variable
-export GRAFANA_API_KEY="your-grafana-api-key-here"
-export GRAFANA_HOST="https://your-grafana-instance.com"
-
-# Run the test script
-python grafana-mcp-server/src/grafana_mcp_server/test_grafana_connection.py
-```
-
----
-
 ## 6. Example Usage
 
 ### Query Prometheus Metrics
@@ -322,11 +305,8 @@ grafana-mcp-server/
 ### Running Tests
 
 ```bash
-# Test Grafana connection
-python grafana-mcp-server/src/grafana_mcp_server/test_grafana_connection.py
-
-# Run with uv
-uv run grafana-mcp-server/src/grafana_mcp_server/test_grafana_connection.py
+# The test_grafana_connection.py file has been removed
+# You can test the connection using the MCP server's test_connection tool
 ```
 
 ### Code Quality
