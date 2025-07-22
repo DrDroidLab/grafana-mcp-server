@@ -8,6 +8,7 @@ import yaml
 from flask import Flask, current_app, jsonify, request
 
 from src.grafana_mcp_server.processor.grafana_processor import GrafanaApiProcessor
+from src.grafana_mcp_server.stdio_server import run_stdio_server
 
 app = Flask(__name__)
 logger = logging.getLogger(__name__)
@@ -109,12 +110,147 @@ def get_current_time_iso():
     return datetime.datetime.now(datetime.timezone.utc).isoformat()
 
 
-# Available tools - Phase 1: Only test_connection
+# Available tools - Grafana MCP Server Tools
 TOOLS_LIST = [
     {
         "name": "test_connection",
         "description": "Test connection to Grafana API to verify configuration and connectivity. Requires API key or open Grafana instance.",
         "inputSchema": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "grafana_promql_query",
+        "description": "Executes PromQL queries against Grafana's Prometheus datasource. Fetches metrics data using PromQL expressions, optimizes time series responses to reduce token size.",
+        "inputSchema": {
+            "type": "object", 
+            "properties": {
+                "datasource_uid": {"type": "string", "description": "Prometheus datasource UID"},
+                "query": {"type": "string", "description": "PromQL query string"}
+            },
+            "required": ["datasource_uid", "query"]
+        },
+    },
+    {
+        "name": "grafana_loki_query",
+        "description": "Queries Grafana Loki for log data. Fetches logs for a specified duration (e.g., '5m', '1h', '2d'), converts relative time to absolute timestamps.",
+        "inputSchema": {
+            "type": "object", 
+            "properties": {
+                "query": {"type": "string", "description": "Loki query string"},
+                "duration": {"type": "string", "description": "Time duration (e.g., '5m', '1h', '2d')"},
+                "limit": {"type": "integer", "description": "Maximum number of log entries to return", "default": 100}
+            },
+            "required": ["query", "duration"]
+        },
+    },
+    {
+        "name": "grafana_get_dashboard_config",
+        "description": "Retrieves dashboard configuration details from the database. Queries the connectors_connectormetadatamodelstore table for dashboard metadata.",
+        "inputSchema": {
+            "type": "object", 
+            "properties": {
+                "dashboard_uid": {"type": "string", "description": "Dashboard UID"}
+            },
+            "required": ["dashboard_uid"]
+        },
+    },
+    {
+        "name": "grafana_query_dashboard_panels",
+        "description": "Executes queries for specific dashboard panels. Can query up to 4 panels at once, supports template variables, optimizes metrics data.",
+        "inputSchema": {
+            "type": "object", 
+            "properties": {
+                "dashboard_uid": {"type": "string", "description": "Dashboard UID"},
+                "panel_ids": {"type": "array", "items": {"type": "integer"}, "description": "List of panel IDs to query (max 4)"},
+                "template_variables": {"type": "object", "description": "Template variables for the dashboard"}
+            },
+            "required": ["dashboard_uid", "panel_ids"]
+        },
+    },
+    {
+        "name": "grafana_fetch_label_values",
+        "description": "Fetches label values for dashboard variables from Prometheus datasource. Retrieves available values for specific labels (e.g., 'instance', 'job').",
+        "inputSchema": {
+            "type": "object", 
+            "properties": {
+                "datasource_uid": {"type": "string", "description": "Prometheus datasource UID"},
+                "label_name": {"type": "string", "description": "Label name to fetch values for (e.g., 'instance', 'job')"}
+            },
+            "required": ["datasource_uid", "label_name"]
+        },
+    },
+    {
+        "name": "grafana_fetch_dashboard_variables",
+        "description": "Fetches all variables and their values from a Grafana dashboard. Retrieves dashboard template variables and their current values.",
+        "inputSchema": {
+            "type": "object", 
+            "properties": {
+                "dashboard_uid": {"type": "string", "description": "Dashboard UID"}
+            },
+            "required": ["dashboard_uid"]
+        },
+    },
+    {
+        "name": "grafana_fetch_all_dashboards",
+        "description": "Fetches all dashboards from Grafana with basic information like title, UID, folder, tags, etc.",
+        "inputSchema": {
+            "type": "object", 
+            "properties": {
+                "limit": {"type": "integer", "description": "Maximum number of dashboards to return", "default": 100}
+            },
+            "required": []
+        },
+    },
+    {
+        "name": "grafana_fetch_datasources",
+        "description": "Fetches all datasources from Grafana with their configuration details.",
+        "inputSchema": {
+            "type": "object", 
+            "properties": {},
+            "required": []
+        },
+    },
+    {
+        "name": "grafana_fetch_users",
+        "description": "Fetches all users from Grafana with their basic information and permissions.",
+        "inputSchema": {
+            "type": "object", 
+            "properties": {
+                "limit": {"type": "integer", "description": "Maximum number of users to return", "default": 100}
+            },
+            "required": []
+        },
+    },
+    {
+        "name": "grafana_fetch_teams",
+        "description": "Fetches all teams from Grafana with their member information.",
+        "inputSchema": {
+            "type": "object", 
+            "properties": {
+                "limit": {"type": "integer", "description": "Maximum number of teams to return", "default": 100}
+            },
+            "required": []
+        },
+    },
+    {
+        "name": "grafana_fetch_folders",
+        "description": "Fetches all folders from Grafana with their metadata and permissions.",
+        "inputSchema": {
+            "type": "object", 
+            "properties": {},
+            "required": []
+        },
+    },
+    {
+        "name": "grafana_fetch_annotations",
+        "description": "Fetches annotations from Grafana, optionally filtered by dashboard UID.",
+        "inputSchema": {
+            "type": "object", 
+            "properties": {
+                "dashboard_uid": {"type": "string", "description": "Optional dashboard UID to filter annotations"},
+                "limit": {"type": "integer", "description": "Maximum number of annotations to return", "default": 100}
+            },
+            "required": []
+        },
     }
 ]
 
@@ -144,9 +280,189 @@ def test_grafana_connection():
         return {"status": "error", "message": f"Failed to connect to Grafana: {str(e)}"}
 
 
+def grafana_promql_query(datasource_uid, query):
+    """Execute PromQL query against Grafana's Prometheus datasource"""
+    try:
+        grafana_processor = current_app.config.get("grafana_processor")
+        if not grafana_processor:
+            return {"status": "error", "message": "Grafana processor not initialized. Check configuration."}
+        
+        result = grafana_processor.grafana_promql_query(datasource_uid, query)
+        return result
+    except Exception as e:
+        logger.error(f"Error executing PromQL query: {str(e)}")
+        return {"status": "error", "message": f"PromQL query failed: {str(e)}"}
+
+
+def grafana_loki_query(query, duration, limit=100):
+    """Query Grafana Loki for log data"""
+    try:
+        grafana_processor = current_app.config.get("grafana_processor")
+        if not grafana_processor:
+            return {"status": "error", "message": "Grafana processor not initialized. Check configuration."}
+        
+        result = grafana_processor.grafana_loki_query(query, duration, limit)
+        return result
+    except Exception as e:
+        logger.error(f"Error executing Loki query: {str(e)}")
+        return {"status": "error", "message": f"Loki query failed: {str(e)}"}
+
+
+def grafana_get_dashboard_config(dashboard_uid):
+    """Get dashboard configuration details"""
+    try:
+        grafana_processor = current_app.config.get("grafana_processor")
+        if not grafana_processor:
+            return {"status": "error", "message": "Grafana processor not initialized. Check configuration."}
+        
+        result = grafana_processor.grafana_get_dashboard_config_details(dashboard_uid)
+        return result
+    except Exception as e:
+        logger.error(f"Error fetching dashboard config: {str(e)}")
+        return {"status": "error", "message": f"Failed to fetch dashboard config: {str(e)}"}
+
+
+def grafana_query_dashboard_panels(dashboard_uid, panel_ids, template_variables=None):
+    """Execute queries for specific dashboard panels"""
+    try:
+        grafana_processor = current_app.config.get("grafana_processor")
+        if not grafana_processor:
+            return {"status": "error", "message": "Grafana processor not initialized. Check configuration."}
+        
+        result = grafana_processor.grafana_query_dashboard_panels(dashboard_uid, panel_ids, template_variables)
+        return result
+    except Exception as e:
+        logger.error(f"Error querying dashboard panels: {str(e)}")
+        return {"status": "error", "message": f"Failed to query dashboard panels: {str(e)}"}
+
+
+def grafana_fetch_label_values(datasource_uid, label_name):
+    """Fetch label values for dashboard variables from Prometheus datasource"""
+    try:
+        grafana_processor = current_app.config.get("grafana_processor")
+        if not grafana_processor:
+            return {"status": "error", "message": "Grafana processor not initialized. Check configuration."}
+        
+        result = grafana_processor.grafana_fetch_dashboard_variable_label_values(datasource_uid, label_name)
+        return result
+    except Exception as e:
+        logger.error(f"Error fetching label values: {str(e)}")
+        return {"status": "error", "message": f"Failed to fetch label values: {str(e)}"}
+
+
+def grafana_fetch_dashboard_variables(dashboard_uid):
+    """Fetch all variables and their values from a Grafana dashboard"""
+    try:
+        grafana_processor = current_app.config.get("grafana_processor")
+        if not grafana_processor:
+            return {"status": "error", "message": "Grafana processor not initialized. Check configuration."}
+        
+        result = grafana_processor.grafana_fetch_dashboard_variables(dashboard_uid)
+        return result
+    except Exception as e:
+        logger.error(f"Error fetching dashboard variables: {str(e)}")
+        return {"status": "error", "message": f"Failed to fetch dashboard variables: {str(e)}"}
+
+
+def grafana_fetch_all_dashboards(limit=100):
+    """Fetch all dashboards from Grafana"""
+    try:
+        grafana_processor = current_app.config.get("grafana_processor")
+        if not grafana_processor:
+            return {"status": "error", "message": "Grafana processor not initialized. Check configuration."}
+        
+        result = grafana_processor.grafana_fetch_all_dashboards(limit)
+        return result
+    except Exception as e:
+        logger.error(f"Error fetching dashboards: {str(e)}")
+        return {"status": "error", "message": f"Failed to fetch dashboards: {str(e)}"}
+
+
+def grafana_fetch_datasources():
+    """Fetch all datasources from Grafana"""
+    try:
+        grafana_processor = current_app.config.get("grafana_processor")
+        if not grafana_processor:
+            return {"status": "error", "message": "Grafana processor not initialized. Check configuration."}
+        
+        result = grafana_processor.grafana_fetch_datasources()
+        return result
+    except Exception as e:
+        logger.error(f"Error fetching datasources: {str(e)}")
+        return {"status": "error", "message": f"Failed to fetch datasources: {str(e)}"}
+
+
+def grafana_fetch_users(limit=100):
+    """Fetch all users from Grafana"""
+    try:
+        grafana_processor = current_app.config.get("grafana_processor")
+        if not grafana_processor:
+            return {"status": "error", "message": "Grafana processor not initialized. Check configuration."}
+        
+        result = grafana_processor.grafana_fetch_users(limit)
+        return result
+    except Exception as e:
+        logger.error(f"Error fetching users: {str(e)}")
+        return {"status": "error", "message": f"Failed to fetch users: {str(e)}"}
+
+
+def grafana_fetch_teams(limit=100):
+    """Fetch all teams from Grafana"""
+    try:
+        grafana_processor = current_app.config.get("grafana_processor")
+        if not grafana_processor:
+            return {"status": "error", "message": "Grafana processor not initialized. Check configuration."}
+        
+        result = grafana_processor.grafana_fetch_teams(limit)
+        return result
+    except Exception as e:
+        logger.error(f"Error fetching teams: {str(e)}")
+        return {"status": "error", "message": f"Failed to fetch teams: {str(e)}"}
+
+
+def grafana_fetch_folders():
+    """Fetch all folders from Grafana"""
+    try:
+        grafana_processor = current_app.config.get("grafana_processor")
+        if not grafana_processor:
+            return {"status": "error", "message": "Grafana processor not initialized. Check configuration."}
+        
+        result = grafana_processor.grafana_fetch_folders()
+        return result
+    except Exception as e:
+        logger.error(f"Error fetching folders: {str(e)}")
+        return {"status": "error", "message": f"Failed to fetch folders: {str(e)}"}
+
+
+def grafana_fetch_annotations(dashboard_uid=None, limit=100):
+    """Fetch annotations from Grafana"""
+    try:
+        grafana_processor = current_app.config.get("grafana_processor")
+        if not grafana_processor:
+            return {"status": "error", "message": "Grafana processor not initialized. Check configuration."}
+        
+        result = grafana_processor.grafana_fetch_annotations(dashboard_uid, limit)
+        return result
+    except Exception as e:
+        logger.error(f"Error fetching annotations: {str(e)}")
+        return {"status": "error", "message": f"Failed to fetch annotations: {str(e)}"}
+
+
 # Function mapping
 FUNCTION_MAPPING = {
     "test_connection": test_grafana_connection,
+    "grafana_promql_query": grafana_promql_query,
+    "grafana_loki_query": grafana_loki_query,
+    "grafana_get_dashboard_config": grafana_get_dashboard_config,
+    "grafana_query_dashboard_panels": grafana_query_dashboard_panels,
+    "grafana_fetch_label_values": grafana_fetch_label_values,
+    "grafana_fetch_dashboard_variables": grafana_fetch_dashboard_variables,
+    "grafana_fetch_all_dashboards": grafana_fetch_all_dashboards,
+    "grafana_fetch_datasources": grafana_fetch_datasources,
+    "grafana_fetch_users": grafana_fetch_users,
+    "grafana_fetch_teams": grafana_fetch_teams,
+    "grafana_fetch_folders": grafana_fetch_folders,
+    "grafana_fetch_annotations": grafana_fetch_annotations,
 }
 
 
@@ -286,8 +602,11 @@ def main():
     transport = os.environ.get("MCP_TRANSPORT", "http")
     
     if ("-t" in sys.argv and "stdio" in sys.argv) or ("--transport" in sys.argv and "stdio" in sys.argv) or (transport == "stdio"):
-        print("STDIO mode not yet implemented in Phase 1")
-        sys.exit(1)
+        def stdio_handler(data):
+            with app.app_context():
+                return handle_jsonrpc_request(data)
+
+        run_stdio_server(stdio_handler)
     else:
         # HTTP mode
         port = app.config["SERVER_CONFIG"].get("port", 8000)
