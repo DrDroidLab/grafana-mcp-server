@@ -237,15 +237,16 @@ class GrafanaApiProcessor(Processor):
             logger.error(f"Error executing PromQL query: {str(e)}")
             raise e
 
-    def grafana_loki_query(self, query: str, duration: str = None, start_time: str = None, end_time: str = None, limit: int = 100) -> Dict[str, Any]:
+    def grafana_loki_query(self, datasource_uid: str, query: str, duration: str = None, start_time: str = None, end_time: str = None, limit: int = 100) -> Dict[str, Any]:
         """
         Queries Grafana Loki for log data.
         
         Args:
+            datasource_uid: Loki datasource UID
             query: Loki query string
             duration: Time duration (e.g., '5m', '1h', '2d') - overrides start_time/end_time if provided
-            start_time: Start time in RFC3339 or relative string (e.g., 'now-2h', '2023-01-01T00:00:00Z')
-            end_time: End time in RFC3339 or relative string (e.g., 'now-2h', '2023-01-01T00:00:00Z')
+            start_time: Start time in RFC3339 or relative string
+            end_time: End time in RFC3339 or relative string
             limit: Maximum number of log entries to return
             
         Returns:
@@ -263,10 +264,12 @@ class GrafanaApiProcessor(Processor):
                 "queries": [{
                     "refId": "A",
                     "expr": query,
+                    "queryType": "",
+                    "maxLines": limit,
                     "datasource": {
-                        "type": "loki"
-                    },
-                    "maxLines": limit
+                        "type": "loki",
+                        "uid": datasource_uid
+                    }
                 }],
                 "from": str(start_ms),
                 "to": str(end_ms)
@@ -286,7 +289,7 @@ class GrafanaApiProcessor(Processor):
                     "end_time": end_dt.isoformat(),
                     "duration": duration,
                     "limit": limit,
-                    "results": data
+                    "data": data
                 }
             else:
                 raise Exception(f"Loki query failed. Status: {response.status_code}, Response: {response.text}")

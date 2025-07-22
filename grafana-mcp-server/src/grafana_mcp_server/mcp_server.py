@@ -147,6 +147,7 @@ TOOLS_LIST = [
         "inputSchema": {
             "type": "object", 
             "properties": {
+                "datasource_uid": {"type": "string", "description": "Loki datasource UID"},
                 "query": {"type": "string", "description": "Loki query string"},
                 "duration": {"type": "string", "description": "Time duration (e.g., '5m', '1h', '2d') - overrides start_time/end_time if provided"},
                 "start_time": {
@@ -159,7 +160,7 @@ TOOLS_LIST = [
                 },
                 "limit": {"type": "integer", "description": "Maximum number of log entries to return", "default": 100}
             },
-            "required": ["query"]
+            "required": ["datasource_uid", "query"]
         },
     },
     {
@@ -280,14 +281,14 @@ def grafana_promql_query(datasource_uid, query, start_time=None, end_time=None, 
         return {"status": "error", "message": f"PromQL query failed: {str(e)}"}
 
 
-def grafana_loki_query(query, duration=None, start_time=None, end_time=None, limit=100):
+def grafana_loki_query(datasource_uid, query, duration=None, start_time=None, end_time=None, limit=100):
     """Query Grafana Loki for log data"""
     try:
         grafana_processor = current_app.config.get("grafana_processor")
         if not grafana_processor:
             return {"status": "error", "message": "Grafana processor not initialized. Check configuration."}
         
-        result = grafana_processor.grafana_loki_query(query, duration, start_time, end_time, limit)
+        result = grafana_processor.grafana_loki_query(datasource_uid, query, duration, start_time, end_time, limit)
         return result
     except Exception as e:
         logger.error(f"Error executing Loki query: {str(e)}")
