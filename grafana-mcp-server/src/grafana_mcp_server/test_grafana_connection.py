@@ -24,10 +24,15 @@ def test_grafana_connection():
     print("🚀 Testing Grafana MCP Server Connection")
     print("=" * 50)
     
-    # Configuration - you can modify these or use environment variables
-    grafana_host = "https://microservices-grafana.demo.drdroid.io/"
-    grafana_api_key = "glsa_YOXrsrlG9WLeOWVSypBjrIl1l7vnh4X0_20f72563"
-    ssl_verify = "true"
+    # Configuration - use environment variables or defaults
+    grafana_host = os.environ.get("GRAFANA_HOST", "your-host")
+    grafana_api_key = os.environ.get("GRAFANA_API_KEY")
+    ssl_verify = os.environ.get("GRAFANA_SSL_VERIFY", "true")
+    
+    if not grafana_api_key:
+        print("❌ ERROR: GRAFANA_API_KEY environment variable is required")
+        print("Please set it with: export GRAFANA_API_KEY='your-api-key'")
+        return
     
     print(f"Host: {grafana_host}")
     print(f"SSL Verify: {ssl_verify}")

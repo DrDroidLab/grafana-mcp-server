@@ -51,9 +51,7 @@ def load_config():
 
     # Environment variable overrides (preferred method)
     grafana_host = os.environ.get("GRAFANA_HOST") or (config.get("grafana", {}).get("host") if config.get("grafana") else None)
-    print("grafana_host",grafana_host)
     grafana_api_key = os.environ.get("GRAFANA_API_KEY") or (config.get("grafana", {}).get("api_key") if config.get("grafana") else None)
-    print("grafana_api_key",grafana_api_key)
     grafana_ssl_verify = os.environ.get("GRAFANA_SSL_VERIFY") or (
         config.get("grafana", {}).get("ssl_verify", "true") if config.get("grafana") else "true"
     )
