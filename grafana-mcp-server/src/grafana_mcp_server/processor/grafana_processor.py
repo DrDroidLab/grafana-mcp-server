@@ -344,6 +344,8 @@ class GrafanaApiProcessor(Processor):
             if len(panel_ids) > 4:
                 raise ValueError("Maximum 4 panels can be queried at once")
             
+            logger.info(f"Querying dashboard panels: {dashboard_uid}, panel_ids: {panel_ids}")
+            
             # First get dashboard configuration
             dashboard_url = f"{self.__host}/api/dashboards/uid/{dashboard_uid}"
             dashboard_response = requests.get(dashboard_url, headers=self.headers, verify=self.__ssl_verify, timeout=20)
@@ -355,15 +357,22 @@ class GrafanaApiProcessor(Processor):
             dashboard = dashboard_data.get("dashboard", {})
             panels = dashboard.get("panels", [])
             
+            logger.info(f"Found {len(panels)} panels in dashboard")
+            
             # Filter panels by requested IDs
             target_panels = [panel for panel in panels if panel.get("id") in panel_ids]
             
             if not target_panels:
+                logger.warning(f"No panels found with IDs: {panel_ids}")
+                logger.info(f"Available panel IDs: {[panel.get('id') for panel in panels]}")
                 raise Exception(f"No panels found with IDs: {panel_ids}")
+            
+            logger.info(f"Found {len(target_panels)} target panels")
             
             # Execute queries for each panel
             panel_results = []
             for panel in target_panels:
+                logger.info(f"Processing panel {panel.get('id')}: {panel.get('title', 'Unknown')}")
                 panel_result = self._execute_panel_query(panel, template_variables or {})
                 panel_results.append({
                     "panel_id": panel.get("id"),
@@ -800,30 +809,68 @@ class GrafanaApiProcessor(Processor):
     def _execute_panel_query(self, panel: Dict[str, Any], template_variables: Dict[str, str]) -> Dict[str, Any]:
         """Execute query for a specific panel"""
         try:
+            logger.info(f"Executing panel query for panel: {panel.get('title', 'Unknown')}")
+            logger.debug(f"Panel structure: {json.dumps(panel, indent=2)}")
+            
             targets = panel.get("targets", [])
             if not targets:
+                logger.warning(f"No targets found for panel: {panel.get('title', 'Unknown')}")
                 return {"error": "No targets found for panel"}
             
             # For now, execute the first target
             target = targets[0]
-            query = target.get("expr", "")
-            datasource = target.get("datasource", {})
+            logger.debug(f"Target structure: {json.dumps(target, indent=2)}")
             
-            # Handle both string and object datasource formats
+            # Extract query expression
+            query = target.get("expr", "")
+            if not query:
+                logger.warning(f"No query expression found in target for panel: {panel.get('title', 'Unknown')}")
+                return {"error": "No query expression found in target"}
+            
+            # Extract datasource information
+            datasource = target.get("datasource", {})
+            logger.debug(f"Datasource info: {datasource}")
+            
+            # Handle different datasource formats
+            datasource_uid = None
             if isinstance(datasource, str):
                 datasource_uid = datasource
-            else:
+            elif isinstance(datasource, dict):
                 datasource_uid = datasource.get("uid")
+                if not datasource_uid:
+                    datasource_uid = datasource.get("id")  # Fallback to id
+            else:
+                logger.warning(f"Unexpected datasource format: {type(datasource)}")
+                return {"error": f"Unexpected datasource format: {type(datasource)}"}
             
-            if not query or not datasource_uid:
-                return {"error": "Invalid target configuration"}
+            if not datasource_uid:
+                logger.warning(f"No datasource UID found for panel: {panel.get('title', 'Unknown')}")
+                # Try to get datasource from panel level
+                panel_datasource = panel.get("datasource", {})
+                if isinstance(panel_datasource, dict):
+                    datasource_uid = panel_datasource.get("uid") or panel_datasource.get("id")
+                elif isinstance(panel_datasource, str):
+                    datasource_uid = panel_datasource
+                
+                if not datasource_uid:
+                    return {"error": "No datasource UID found"}
             
-            # Apply template variables
+            logger.info(f"Executing query: {query} with datasource: {datasource_uid}")
+            
+            # Apply template variables - fix the replacement pattern
+            original_query = query
             for var_name, var_value in template_variables.items():
+                # Replace both $var and ${var} patterns
+                query = query.replace(f"${var_name}", var_value)
                 query = query.replace(f"${{{var_name}}}", var_value)
             
-            # Execute the query
-            return self.grafana_promql_query(datasource_uid, query)
+            if original_query != query:
+                logger.info(f"Applied template variables. Original: {original_query}, Modified: {query}")
+            
+            # Execute the query with a reasonable time range
+            result = self.grafana_promql_query(datasource_uid, query, duration="1h")
+            
+            return result
             
         except Exception as e:
             logger.error(f"Error executing panel query: {e}")
@@ -866,3 +913,173 @@ class GrafanaApiProcessor(Processor):
         except Exception as e:
             logger.error(f"Error extracting label values from series: {e}")
             return []
+
+    def grafana_inspect_panel_structure(self, dashboard_uid: str, panel_id: int) -> Dict[str, Any]:
+        """
+        Inspect the structure of a specific panel for debugging purposes.
+        
+        Args:
+            dashboard_uid: Dashboard UID
+            panel_id: Panel ID to inspect
+            
+        Returns:
+            Dict containing panel structure information
+        """
+        try:
+            logger.info(f"Inspecting panel structure for dashboard: {dashboard_uid}, panel: {panel_id}")
+            
+            # Get dashboard configuration
+            dashboard_url = f"{self.__host}/api/dashboards/uid/{dashboard_uid}"
+            dashboard_response = requests.get(dashboard_url, headers=self.headers, verify=self.__ssl_verify, timeout=20)
+            
+            if dashboard_response.status_code != 200:
+                raise Exception(f"Failed to fetch dashboard. Status: {dashboard_response.status_code}")
+            
+            dashboard_data = dashboard_response.json()
+            dashboard = dashboard_data.get("dashboard", {})
+            panels = dashboard.get("panels", [])
+            
+            # Find the specific panel
+            target_panel = None
+            for panel in panels:
+                if panel.get("id") == panel_id:
+                    target_panel = panel
+                    break
+            
+            if not target_panel:
+                available_ids = [panel.get("id") for panel in panels]
+                raise Exception(f"Panel {panel_id} not found. Available panel IDs: {available_ids}")
+            
+            # Extract key information
+            panel_info = {
+                "panel_id": target_panel.get("id"),
+                "title": target_panel.get("title"),
+                "type": target_panel.get("type"),
+                "targets_count": len(target_panel.get("targets", [])),
+                "targets": []
+            }
+            
+            # Inspect each target
+            for i, target in enumerate(target_panel.get("targets", [])):
+                target_info = {
+                    "target_index": i,
+                    "expr": target.get("expr"),
+                    "refId": target.get("refId"),
+                    "datasource": target.get("datasource"),
+                    "datasource_type": type(target.get("datasource")).__name__,
+                    "has_expr": bool(target.get("expr")),
+                    "has_datasource": bool(target.get("datasource"))
+                }
+                panel_info["targets"].append(target_info)
+            
+            return {
+                "status": "success",
+                "panel_info": panel_info,
+                "full_panel": target_panel
+            }
+                
+        except Exception as e:
+            logger.error(f"Error inspecting panel structure: {str(e)}")
+            raise e
+
+    def grafana_test_query(self, datasource_uid: str, query: str, start_time: str = None, end_time: str = None, duration: str = None) -> Dict[str, Any]:
+        """
+        Test a query to see if it returns data and debug any issues.
+        
+        Args:
+            datasource_uid: Prometheus datasource UID
+            query: PromQL query string
+            start_time: Start time in RFC3339 or relative string
+            end_time: End time in RFC3339 or relative string
+            duration: Duration string for the time window
+            
+        Returns:
+            Dict containing query test results with debugging information
+        """
+        try:
+            # Use standardized time range logic with longer default
+            start_dt, end_dt = self._get_time_range(start_time, end_time, duration, default_hours=6)
+            
+            # Convert to milliseconds since epoch (Grafana format)
+            start_ms = int(start_dt.timestamp() * 1000)
+            end_ms = int(end_dt.timestamp() * 1000)
+            
+            payload = {
+                "queries": [{
+                    "refId": "A",
+                    "expr": query,
+                    "editorMode": "code",
+                    "legendFormat": "__auto",
+                    "range": True,
+                    "exemplar": False,
+                    "requestId": "A",
+                    "utcOffsetSec": 0,
+                    "scopes": [],
+                    "adhocFilters": [],
+                    "interval": "",
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": datasource_uid
+                    },
+                    "intervalMs": 30000,
+                    "maxDataPoints": 1000
+                }],
+                "from": str(start_ms),
+                "to": str(end_ms)
+            }
+            
+            url = f"{self.__host}/api/ds/query"
+            logger.info(f"Testing query: {query} from {start_dt.isoformat()} to {end_dt.isoformat()}")
+            
+            response = requests.post(url, headers=self.headers, json=payload, verify=self.__ssl_verify, timeout=30)
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                # Analyze the response
+                result_analysis = {
+                    "query": query,
+                    "start_time": start_dt.isoformat(),
+                    "end_time": end_dt.isoformat(),
+                    "duration": duration,
+                    "has_data": False,
+                    "frames_count": 0,
+                    "total_values": 0,
+                    "error_messages": []
+                }
+                
+                # Check if there's data
+                for result_key, result_data in data.get("results", {}).items():
+                    if result_data.get("status") == 200:
+                        frames = result_data.get("frames", [])
+                        result_analysis["frames_count"] = len(frames)
+                        
+                        for frame in frames:
+                            if "data" in frame and "values" in frame["data"]:
+                                values = frame["data"]["values"]
+                                if values and len(values) > 0:
+                                    for value_array in values:
+                                        if value_array and len(value_array) > 0:
+                                            result_analysis["total_values"] += len([v for v in value_array if v is not None])
+                                            result_analysis["has_data"] = True
+                    else:
+                        error_msg = result_data.get("error", "Unknown error")
+                        result_analysis["error_messages"].append(f"Result {result_key}: {error_msg}")
+                
+                return {
+                    "status": "success",
+                    "analysis": result_analysis,
+                    "raw_response": data
+                }
+            else:
+                return {
+                    "status": "error",
+                    "message": f"Query failed. Status: {response.status_code}, Response: {response.text}"
+                }
+                
+        except Exception as e:
+            logger.error(f"Error testing query: {str(e)}")
+            return {
+                "status": "error",
+                "message": f"Query test failed: {str(e)}"
+            }
