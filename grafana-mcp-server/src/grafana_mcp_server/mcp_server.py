@@ -230,82 +230,12 @@ TOOLS_LIST = [
         },
     },
     {
-        "name": "grafana_fetch_users",
-        "description": "Fetches all users from Grafana with their basic information and permissions.",
-        "inputSchema": {
-            "type": "object", 
-            "properties": {
-                "limit": {"type": "integer", "description": "Maximum number of users to return", "default": 100}
-            },
-            "required": []
-        },
-    },
-    {
-        "name": "grafana_fetch_teams",
-        "description": "Fetches all teams from Grafana with their member information.",
-        "inputSchema": {
-            "type": "object", 
-            "properties": {
-                "limit": {"type": "integer", "description": "Maximum number of teams to return", "default": 100}
-            },
-            "required": []
-        },
-    },
-    {
         "name": "grafana_fetch_folders",
         "description": "Fetches all folders from Grafana with their metadata and permissions.",
         "inputSchema": {
             "type": "object", 
             "properties": {},
             "required": []
-        },
-    },
-    {
-        "name": "grafana_fetch_annotations",
-        "description": "Fetches annotations from Grafana, optionally filtered by dashboard UID.",
-        "inputSchema": {
-            "type": "object", 
-            "properties": {
-                "dashboard_uid": {"type": "string", "description": "Optional dashboard UID to filter annotations"},
-                "limit": {"type": "integer", "description": "Maximum number of annotations to return", "default": 100}
-            },
-            "required": []
-        },
-    },
-    {
-        "name": "grafana_inspect_panel_structure",
-        "description": "Inspect the structure of a specific panel for debugging purposes.",
-        "inputSchema": {
-            "type": "object", 
-            "properties": {
-                "dashboard_uid": {"type": "string", "description": "Dashboard UID"},
-                "panel_id": {"type": "integer", "description": "Panel ID to inspect"}
-            },
-            "required": ["dashboard_uid", "panel_id"]
-        },
-    },
-    {
-        "name": "grafana_test_query",
-        "description": "Test a query to see if it returns data and debug any issues.",
-        "inputSchema": {
-            "type": "object", 
-            "properties": {
-                "datasource_uid": {"type": "string", "description": "Prometheus datasource UID"},
-                "query": {"type": "string", "description": "PromQL query string"},
-                "start_time": {
-                    "type": "string", 
-                    "description": "Start time in RFC3339 or relative string (e.g., 'now-2h', '2023-01-01T00:00:00Z')"
-                },
-                "end_time": {
-                    "type": "string", 
-                    "description": "End time in RFC3339 or relative string (e.g., 'now-2h', '2023-01-01T00:00:00Z')"
-                },
-                "duration": {
-                    "type": "string", 
-                    "description": "Duration string for the time window (e.g., '2h', '90m')"
-                }
-            },
-            "required": ["datasource_uid", "query"]
         },
     }
 ]
@@ -448,34 +378,6 @@ def grafana_fetch_datasources():
         return {"status": "error", "message": f"Failed to fetch datasources: {str(e)}"}
 
 
-def grafana_fetch_users(limit=100):
-    """Fetch all users from Grafana"""
-    try:
-        grafana_processor = current_app.config.get("grafana_processor")
-        if not grafana_processor:
-            return {"status": "error", "message": "Grafana processor not initialized. Check configuration."}
-        
-        result = grafana_processor.grafana_fetch_users(limit)
-        return result
-    except Exception as e:
-        logger.error(f"Error fetching users: {str(e)}")
-        return {"status": "error", "message": f"Failed to fetch users: {str(e)}"}
-
-
-def grafana_fetch_teams(limit=100):
-    """Fetch all teams from Grafana"""
-    try:
-        grafana_processor = current_app.config.get("grafana_processor")
-        if not grafana_processor:
-            return {"status": "error", "message": "Grafana processor not initialized. Check configuration."}
-        
-        result = grafana_processor.grafana_fetch_teams(limit)
-        return result
-    except Exception as e:
-        logger.error(f"Error fetching teams: {str(e)}")
-        return {"status": "error", "message": f"Failed to fetch teams: {str(e)}"}
-
-
 def grafana_fetch_folders():
     """Fetch all folders from Grafana"""
     try:
@@ -490,48 +392,6 @@ def grafana_fetch_folders():
         return {"status": "error", "message": f"Failed to fetch folders: {str(e)}"}
 
 
-def grafana_fetch_annotations(dashboard_uid=None, limit=100):
-    """Fetch annotations from Grafana"""
-    try:
-        grafana_processor = current_app.config.get("grafana_processor")
-        if not grafana_processor:
-            return {"status": "error", "message": "Grafana processor not initialized. Check configuration."}
-        
-        result = grafana_processor.grafana_fetch_annotations(dashboard_uid, limit)
-        return result
-    except Exception as e:
-        logger.error(f"Error fetching annotations: {str(e)}")
-        return {"status": "error", "message": f"Failed to fetch annotations: {str(e)}"}
-
-
-def grafana_inspect_panel_structure(dashboard_uid, panel_id):
-    """Inspect panel structure for debugging"""
-    try:
-        grafana_processor = current_app.config.get("grafana_processor")
-        if not grafana_processor:
-            return {"status": "error", "message": "Grafana processor not initialized. Check configuration."}
-        
-        result = grafana_processor.grafana_inspect_panel_structure(dashboard_uid, panel_id)
-        return result
-    except Exception as e:
-        logger.error(f"Error inspecting panel structure: {str(e)}")
-        return {"status": "error", "message": f"Failed to inspect panel structure: {str(e)}"}
-
-
-def grafana_test_query(datasource_uid, query, start_time=None, end_time=None, duration=None):
-    """Test a query to see if it returns data and debug any issues"""
-    try:
-        grafana_processor = current_app.config.get("grafana_processor")
-        if not grafana_processor:
-            return {"status": "error", "message": "Grafana processor not initialized. Check configuration."}
-        
-        result = grafana_processor.grafana_test_query(datasource_uid, query, start_time, end_time, duration)
-        return result
-    except Exception as e:
-        logger.error(f"Error testing query: {str(e)}")
-        return {"status": "error", "message": f"Failed to test query: {str(e)}"}
-
-
 # Function mapping
 FUNCTION_MAPPING = {
     "test_connection": test_grafana_connection,
@@ -543,12 +403,7 @@ FUNCTION_MAPPING = {
     "grafana_fetch_dashboard_variables": grafana_fetch_dashboard_variables,
     "grafana_fetch_all_dashboards": grafana_fetch_all_dashboards,
     "grafana_fetch_datasources": grafana_fetch_datasources,
-    "grafana_fetch_users": grafana_fetch_users,
-    "grafana_fetch_teams": grafana_fetch_teams,
     "grafana_fetch_folders": grafana_fetch_folders,
-    "grafana_fetch_annotations": grafana_fetch_annotations,
-    "grafana_inspect_panel_structure": grafana_inspect_panel_structure,
-    "grafana_test_query": grafana_test_query,
 }
 
 
