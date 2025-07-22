@@ -231,51 +231,7 @@ The server runs on port 8000 by default.
 
 ---
 
-## 6. Example Usage
-
-### Query Prometheus Metrics
-
-```python
-# Example PromQL query
-result = grafana_promql_query(
-    datasource_uid="prometheus",
-    query="rate(http_requests_total[5m])",
-    duration="1h"
-)
-```
-
-### Query Loki Logs
-
-```python
-# Example Loki query
-result = grafana_loki_query(
-    query='{job="myapp"} |= "error"',
-    duration="30m",
-    limit=50
-)
-```
-
-### Fetch Dashboard Data
-
-```python
-# Get dashboard panels data
-result = grafana_query_dashboard_panels(
-    dashboard_uid="your-dashboard-uid",
-    panel_ids=[1, 2, 3],
-    template_variables={"service": "myapp"}
-)
-```
-
-### List All Dashboards
-
-```python
-# Get all dashboards
-result = grafana_fetch_all_dashboards(limit=50)
-```
-
----
-
-## 7. Project Structure
+## 5. Project Structure
 
 ```
 grafana-mcp-server/
@@ -286,7 +242,6 @@ grafana-mcp-server/
 │           ├── config.yaml              # Configuration file
 │           ├── mcp_server.py            # Main MCP server implementation
 │           ├── stdio_server.py          # STDIO server for MCP
-│           ├── test_grafana_connection.py
 │           └── processor/
 │               ├── __init__.py
 │               ├── grafana_processor.py # Grafana API processor
@@ -300,31 +255,9 @@ grafana-mcp-server/
 
 ---
 
-## 8. Development
-
-### Running Tests
-
-```bash
-# The test_grafana_connection.py file has been removed
-# You can test the connection using the MCP server's test_connection tool
-```
-
-### Code Quality
-
-```bash
-# Format code
-black .
-
-# Lint code
-flake8 .
-
-# Type checking
-mypy .
-```
-
 ---
 
-## 9. Troubleshooting
+## 6. Troubleshooting
 
 ### Common Issues
 
@@ -354,7 +287,7 @@ export MCP_SERVER_DEBUG=true
 
 ---
 
-## 10. Contributing
+## 7. Contributing
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
@@ -364,13 +297,13 @@ export MCP_SERVER_DEBUG=true
 
 ---
 
-## 11. License
+## 8. License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
-## 12. Support
+## 9. Support
 
 1. Need help anywhere? Join our [slack community](https://join.slack.com/t/doctor-droid-demo/shared_invite/zt-2h6eap61w-Bmz76OEU6IykmDy673R1qQ) and message on #mcp channel.
 2. Want a 1-click MCP Server? Join the same community and let us know.
