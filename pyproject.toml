@@ -1,0 +1,94 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "src/grafana_mcp_server/__init__.py"
+pattern = "__version__ = ['\"](?P<version>[^'\"]*)['\"]"
+
+[project]
+name = "grafana-mcp-server"
+version = "0.1.0"
+description = "MCP Server for Grafana API integration - enables AI assistants to query Grafana dashboards, datasources, and metrics"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+keywords = ["grafana", "mcp", "observability", "monitoring", "ai", "claude", "cursor"]
+authors = [
+    { name = "Your Name", email = "your.email@example.com" }
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: System :: Monitoring",
+    "Topic :: Software Development :: Libraries :: Python Modules"
+]
+dependencies = [
+    "Flask==3.0.0",
+    "pytest>=8.4.1",
+    "python-dateutil>=2.9.0.post0",
+    "pyyaml>=6.0.1",
+    "requests>=2.31.0",
+    "ruff>=0.12.3",
+    "typing-extensions",
+    "flaky",
+]
+
+[project.scripts]
+grafana-mcp-server = "src.grafana_mcp_server.mcp_server:main"
+
+[project.optional-dependencies]
+prod = [
+    "gunicorn",
+]
+dev = [
+    "pytest-cov",
+    "pytest-xdist",
+    "black",
+]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/grafana-mcp-server"
+Documentation = "https://github.com/yourusername/grafana-mcp-server#readme"
+Repository = "https://github.com/yourusername/grafana-mcp-server"
+Issues = "https://github.com/yourusername/grafana-mcp-server/issues"
+
+[tool.hatch.build]
+exclude = [
+    "**/__pycache__",
+    "**/*.pyc",
+    "**/*.pyo",
+    "**/*.pyd",
+    "**/.venv",
+    "**/env",
+    "**/.ruff_cache",
+    "**/.pytest_cache",
+    "**/node_modules"
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = [
+    "-v",
+    "--tb=short", 
+    "--strict-markers",
+    "--disable-warnings",
+    "--color=yes"
+]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+markers = [
+    "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
+    "flaky(max_runs=3): marks test as flaky and allows retries",
+    "slow: marks tests as slow running"
+]

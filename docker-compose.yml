@@ -1,0 +1,20 @@
+services:
+  grafana-mcp-server:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./grafana-mcp-server/src/grafana_mcp_server/config.yaml:/app/config.yaml:ro
+    environment:
+      - PYTHONUNBUFFERED=1
+      # Uncomment and set these environment variables to override config.yaml
+      # - GRAFANA_HOST=http://your-grafana:3000
+      # - GRAFANA_API_KEY=your-api-key-here
+      # - GRAFANA_SSL_VERIFY=true
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

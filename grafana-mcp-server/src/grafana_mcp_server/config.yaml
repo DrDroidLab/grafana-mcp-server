@@ -1,0 +1,17 @@
+# Grafana MCP Server Configuration
+# Environment variables take precedence over this file
+
+grafana:
+  # Grafana instance URL (required)
+  host: "https://microservices-grafana.demo.drdroid.io/"
+
+  # Method 1: API Key (recommended)
+  api_key: "glsa_5s7xxJyC0J6sPsagcMPEUMFYCvzPBk3l_27f71582"
+  ssl_verify: "true"
+
+server:
+  # Port to run the MCP server on
+  port: 8000
+
+  # Debug mode
+  debug: true
