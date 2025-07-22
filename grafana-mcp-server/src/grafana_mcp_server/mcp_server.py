@@ -7,16 +7,20 @@ import sys
 import yaml
 from flask import Flask, current_app, jsonify, request
 
-from src.grafana_mcp_server.processor.grafana_processor import GrafanaApiProcessor
+try:
+    from src.grafana_mcp_server.processor.grafana_processor import GrafanaApiProcessor
+    from src.grafana_mcp_server.stdio_server import run_stdio_server
+except ImportError:
+    # Fallback for when running the file directly
+    from processor.grafana_processor import GrafanaApiProcessor
+    from stdio_server import run_stdio_server
 
 app = Flask(__name__)
 logger = logging.getLogger(__name__)
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+
 
 # Load configuration from environment variables, then YAML as fallback
 def load_config():
@@ -26,10 +30,10 @@ def load_config():
         "/app/config.yaml",  # Docker container path
         "config.yaml",  # Current working directory
     ]
-    
+
     config = {}
     config_loaded = False
-    
+
     for config_path in possible_config_paths:
         try:
             with open(config_path) as file:
@@ -43,20 +47,18 @@ def load_config():
         except yaml.YAMLError as e:
             logger.error(f"Error parsing YAML configuration from {config_path}: {e}")
             continue
-    
+
     if not config_loaded:
         logger.warning("No config file found, using environment variables only")
         config = {}
 
     # Environment variable overrides (preferred method)
     grafana_host = os.environ.get("GRAFANA_HOST") or (config.get("grafana", {}).get("host") if config.get("grafana") else None)
-    print("grafana_host",grafana_host)
     grafana_api_key = os.environ.get("GRAFANA_API_KEY") or (config.get("grafana", {}).get("api_key") if config.get("grafana") else None)
-    print("grafana_api_key",grafana_api_key)
     grafana_ssl_verify = os.environ.get("GRAFANA_SSL_VERIFY") or (
         config.get("grafana", {}).get("ssl_verify", "true") if config.get("grafana") else "true"
     )
-    
+
     server_port = int(os.environ.get("MCP_SERVER_PORT") or (config.get("server", {}).get("port", 8000) if config.get("server") else 8000))
     server_debug = os.environ.get("MCP_SERVER_DEBUG")
     if server_debug is not None:
@@ -65,12 +67,12 @@ def load_config():
         server_debug = config.get("server", {}).get("debug", True) if config.get("server") else True
 
     logger.info(f"Loaded configuration - Host: {grafana_host}, API Key: {'***' if grafana_api_key else 'None'}, Port: {server_port}")
-    
+
     return {
         "grafana": {
-            "host": grafana_host, 
+            "host": grafana_host,
             "api_key": grafana_api_key,
-            "ssl_verify": grafana_ssl_verify
+            "ssl_verify": grafana_ssl_verify,
         },
         "server": {"port": server_port, "debug": server_debug},
     }
@@ -81,7 +83,7 @@ with app.app_context():
     config = load_config()
     app.config["GRAFANA_CONFIG"] = config.get("grafana", {})
     app.config["SERVER_CONFIG"] = config.get("server", {})
-    
+
     # Initialize Grafana processor
     try:
         app.config["grafana_processor"] = GrafanaApiProcessor(
@@ -109,13 +111,155 @@ def get_current_time_iso():
     return datetime.datetime.now(datetime.timezone.utc).isoformat()
 
 
-# Available tools - Phase 1: Only test_connection
+# Available tools - Grafana MCP Server Tools
 TOOLS_LIST = [
     {
         "name": "test_connection",
         "description": "Test connection to Grafana API to verify configuration and connectivity. Requires API key or open Grafana instance.",
         "inputSchema": {"type": "object", "properties": {}, "required": []},
-    }
+    },
+    {
+        "name": "grafana_promql_query",
+        "description": "Executes PromQL queries against Grafana's Prometheus datasource. "
+        "Fetches metrics data using PromQL expressions, optimizes time series responses to reduce token size.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "datasource_uid": {
+                    "type": "string",
+                    "description": "Prometheus datasource UID",
+                },
+                "query": {"type": "string", "description": "PromQL query string"},
+                "start_time": {
+                    "type": "string",
+                    "description": "Start time in RFC3339 or relative string (e.g., 'now-2h', '2023-01-01T00:00:00Z')",
+                },
+                "end_time": {
+                    "type": "string",
+                    "description": "End time in RFC3339 or relative string (e.g., 'now-2h', '2023-01-01T00:00:00Z')",
+                },
+                "duration": {
+                    "type": "string",
+                    "description": "Duration string for the time window (e.g., '2h', '90m')",
+                },
+            },
+            "required": ["datasource_uid", "query"],
+        },
+    },
+    {
+        "name": "grafana_loki_query",
+        "description": "Queries Grafana Loki for log data. Fetches logs for a specified duration "
+        "(e.g., '5m', '1h', '2d'), converts relative time to absolute timestamps.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Loki query string"},
+                "duration": {
+                    "type": "string",
+                    "description": "Time duration (e.g., '5m', '1h', '2d') - overrides start_time/end_time if provided",
+                },
+                "start_time": {
+                    "type": "string",
+                    "description": "Start time in RFC3339 or relative string (e.g., 'now-2h', '2023-01-01T00:00:00Z')",
+                },
+                "end_time": {
+                    "type": "string",
+                    "description": "End time in RFC3339 or relative string (e.g., 'now-2h', '2023-01-01T00:00:00Z')",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of log entries to return",
+                    "default": 100,
+                },
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "grafana_get_dashboard_config",
+        "description": "Retrieves dashboard configuration details from the database. "
+        "Queries the connectors_connectormetadatamodelstore table for dashboard metadata.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"dashboard_uid": {"type": "string", "description": "Dashboard UID"}},
+            "required": ["dashboard_uid"],
+        },
+    },
+    {
+        "name": "grafana_query_dashboard_panels",
+        "description": "Executes queries for specific dashboard panels. Can query up to 4 panels at once, "
+        "supports template variables, optimizes metrics data.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "dashboard_uid": {"type": "string", "description": "Dashboard UID"},
+                "panel_ids": {
+                    "type": "array",
+                    "items": {"type": "integer"},
+                    "description": "List of panel IDs to query (max 4)",
+                },
+                "template_variables": {
+                    "type": "object",
+                    "description": "Template variables for the dashboard",
+                },
+            },
+            "required": ["dashboard_uid", "panel_ids"],
+        },
+    },
+    {
+        "name": "grafana_fetch_label_values",
+        "description": "Fetches label values for dashboard variables from Prometheus datasource. "
+        "Retrieves available values for specific labels (e.g., 'instance', 'job').",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "datasource_uid": {
+                    "type": "string",
+                    "description": "Prometheus datasource UID",
+                },
+                "label_name": {
+                    "type": "string",
+                    "description": "Label name to fetch values for (e.g., 'instance', 'job')",
+                },
+            },
+            "required": ["datasource_uid", "label_name"],
+        },
+    },
+    {
+        "name": "grafana_fetch_dashboard_variables",
+        "description": "Fetches all variables and their values from a Grafana dashboard. "
+        "Retrieves dashboard template variables and their current values.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"dashboard_uid": {"type": "string", "description": "Dashboard UID"}},
+            "required": ["dashboard_uid"],
+        },
+    },
+    {
+        "name": "grafana_fetch_all_dashboards",
+        "description": "Fetches all dashboards from Grafana with basic information like title, UID, folder, tags, etc.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of dashboards to return",
+                    "default": 100,
+                }
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "grafana_fetch_datasources",
+        "description": "Fetches all datasources from Grafana with their configuration details.",
+        "inputSchema": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "grafana_fetch_folders",
+        "description": "Fetches all folders from Grafana with their metadata and permissions.",
+        "inputSchema": {"type": "object", "properties": {}, "required": []},
+    },
 ]
 
 
@@ -125,28 +269,202 @@ def test_grafana_connection():
     try:
         grafana_processor = current_app.config.get("grafana_processor")
         if not grafana_processor:
-            return {"status": "error", "message": "Grafana processor not initialized. Check configuration."}
-        
+            return {
+                "status": "error",
+                "message": "Grafana processor not initialized. Check configuration.",
+            }
+
         result = grafana_processor.test_connection()
-        
+
         if result:
             connection_details = grafana_processor.get_connection()
             return {
-                "status": "success", 
+                "status": "success",
                 "message": "Successfully connected to Grafana API",
                 "auth_method": connection_details.get("auth_method"),
-                "host": connection_details.get("host")
+                "host": connection_details.get("host"),
             }
         else:
             return {"status": "failed", "message": "Failed to connect to Grafana API"}
     except Exception as e:
-        logger.error(f"Error testing Grafana connection: {str(e)}")
-        return {"status": "error", "message": f"Failed to connect to Grafana: {str(e)}"}
+        logger.error(f"Error testing Grafana connection: {e!s}")
+        return {"status": "error", "message": f"Failed to connect to Grafana: {e!s}"}
+
+
+def grafana_promql_query(datasource_uid, query, start_time=None, end_time=None, duration=None):
+    """Execute PromQL query against Grafana's Prometheus datasource"""
+    try:
+        grafana_processor = current_app.config.get("grafana_processor")
+        if not grafana_processor:
+            return {
+                "status": "error",
+                "message": "Grafana processor not initialized. Check configuration.",
+            }
+
+        result = grafana_processor.grafana_promql_query(datasource_uid, query, start_time, end_time, duration)
+        return result
+    except Exception as e:
+        logger.error(f"Error executing PromQL query: {e!s}")
+        return {"status": "error", "message": f"PromQL query failed: {e!s}"}
+
+
+def grafana_loki_query(query, duration=None, start_time=None, end_time=None, limit=100):
+    """Query Grafana Loki for log data"""
+    try:
+        grafana_processor = current_app.config.get("grafana_processor")
+        if not grafana_processor:
+            return {
+                "status": "error",
+                "message": "Grafana processor not initialized. Check configuration.",
+            }
+
+        result = grafana_processor.grafana_loki_query(query, duration, start_time, end_time, limit)
+        return result
+    except Exception as e:
+        logger.error(f"Error executing Loki query: {e!s}")
+        return {"status": "error", "message": f"Loki query failed: {e!s}"}
+
+
+def grafana_get_dashboard_config(dashboard_uid):
+    """Get dashboard configuration details"""
+    try:
+        grafana_processor = current_app.config.get("grafana_processor")
+        if not grafana_processor:
+            return {
+                "status": "error",
+                "message": "Grafana processor not initialized. Check configuration.",
+            }
+
+        result = grafana_processor.grafana_get_dashboard_config_details(dashboard_uid)
+        return result
+    except Exception as e:
+        logger.error(f"Error fetching dashboard config: {e!s}")
+        return {
+            "status": "error",
+            "message": f"Failed to fetch dashboard config: {e!s}",
+        }
+
+
+def grafana_query_dashboard_panels(dashboard_uid, panel_ids, template_variables=None):
+    """Execute queries for specific dashboard panels"""
+    try:
+        grafana_processor = current_app.config.get("grafana_processor")
+        if not grafana_processor:
+            return {
+                "status": "error",
+                "message": "Grafana processor not initialized. Check configuration.",
+            }
+
+        result = grafana_processor.grafana_query_dashboard_panels(dashboard_uid, panel_ids, template_variables)
+        return result
+    except Exception as e:
+        logger.error(f"Error querying dashboard panels: {e!s}")
+        return {
+            "status": "error",
+            "message": f"Failed to query dashboard panels: {e!s}",
+        }
+
+
+def grafana_fetch_label_values(datasource_uid, label_name):
+    """Fetch label values for dashboard variables from Prometheus datasource"""
+    try:
+        grafana_processor = current_app.config.get("grafana_processor")
+        if not grafana_processor:
+            return {
+                "status": "error",
+                "message": "Grafana processor not initialized. Check configuration.",
+            }
+
+        result = grafana_processor.grafana_fetch_dashboard_variable_label_values(datasource_uid, label_name)
+        return result
+    except Exception as e:
+        logger.error(f"Error fetching label values: {e!s}")
+        return {"status": "error", "message": f"Failed to fetch label values: {e!s}"}
+
+
+def grafana_fetch_dashboard_variables(dashboard_uid):
+    """Fetch all variables and their values from a Grafana dashboard"""
+    try:
+        grafana_processor = current_app.config.get("grafana_processor")
+        if not grafana_processor:
+            return {
+                "status": "error",
+                "message": "Grafana processor not initialized. Check configuration.",
+            }
+
+        result = grafana_processor.grafana_fetch_dashboard_variables(dashboard_uid)
+        return result
+    except Exception as e:
+        logger.error(f"Error fetching dashboard variables: {e!s}")
+        return {
+            "status": "error",
+            "message": f"Failed to fetch dashboard variables: {e!s}",
+        }
+
+
+def grafana_fetch_all_dashboards(limit=100):
+    """Fetch all dashboards from Grafana"""
+    try:
+        grafana_processor = current_app.config.get("grafana_processor")
+        if not grafana_processor:
+            return {
+                "status": "error",
+                "message": "Grafana processor not initialized. Check configuration.",
+            }
+
+        result = grafana_processor.grafana_fetch_all_dashboards(limit)
+        return result
+    except Exception as e:
+        logger.error(f"Error fetching dashboards: {e!s}")
+        return {"status": "error", "message": f"Failed to fetch dashboards: {e!s}"}
+
+
+def grafana_fetch_datasources():
+    """Fetch all datasources from Grafana"""
+    try:
+        grafana_processor = current_app.config.get("grafana_processor")
+        if not grafana_processor:
+            return {
+                "status": "error",
+                "message": "Grafana processor not initialized. Check configuration.",
+            }
+
+        result = grafana_processor.grafana_fetch_datasources()
+        return result
+    except Exception as e:
+        logger.error(f"Error fetching datasources: {e!s}")
+        return {"status": "error", "message": f"Failed to fetch datasources: {e!s}"}
+
+
+def grafana_fetch_folders():
+    """Fetch all folders from Grafana"""
+    try:
+        grafana_processor = current_app.config.get("grafana_processor")
+        if not grafana_processor:
+            return {
+                "status": "error",
+                "message": "Grafana processor not initialized. Check configuration.",
+            }
+
+        result = grafana_processor.grafana_fetch_folders()
+        return result
+    except Exception as e:
+        logger.error(f"Error fetching folders: {e!s}")
+        return {"status": "error", "message": f"Failed to fetch folders: {e!s}"}
 
 
 # Function mapping
 FUNCTION_MAPPING = {
     "test_connection": test_grafana_connection,
+    "grafana_promql_query": grafana_promql_query,
+    "grafana_loki_query": grafana_loki_query,
+    "grafana_get_dashboard_config": grafana_get_dashboard_config,
+    "grafana_query_dashboard_panels": grafana_query_dashboard_panels,
+    "grafana_fetch_label_values": grafana_fetch_label_values,
+    "grafana_fetch_dashboard_variables": grafana_fetch_dashboard_variables,
+    "grafana_fetch_all_dashboards": grafana_fetch_all_dashboards,
+    "grafana_fetch_datasources": grafana_fetch_datasources,
+    "grafana_fetch_folders": grafana_fetch_folders,
 }
 
 
@@ -170,10 +488,13 @@ def handle_jsonrpc_request(data):
         if not (isinstance(client_protocol_version, str) and client_protocol_version.startswith("2025-")):
             return {
                 "jsonrpc": "2.0",
-                "error": {"code": -32602, "message": f"Unsupported protocol version: {client_protocol_version}"},
+                "error": {
+                    "code": -32602,
+                    "message": f"Unsupported protocol version: {client_protocol_version}",
+                },
                 "id": request_id,
             }
-        
+
         return {
             "jsonrpc": "2.0",
             "result": {
@@ -196,18 +517,18 @@ def handle_jsonrpc_request(data):
     elif method == "tools/call":
         tool_name = params.get("name")
         arguments = params.get("arguments", {})
-        
+
         if tool_name not in FUNCTION_MAPPING:
             return {
                 "jsonrpc": "2.0",
                 "error": {"code": -32601, "message": f"Unknown tool: {tool_name}"},
                 "id": request_id,
             }
-        
+
         try:
             # Execute the tool function
             result = FUNCTION_MAPPING[tool_name](**arguments)
-            
+
             return {
                 "jsonrpc": "2.0",
                 "result": {
@@ -217,10 +538,13 @@ def handle_jsonrpc_request(data):
                 "id": request_id,
             }
         except Exception as e:
-            logger.error(f"Error executing tool {tool_name}: {str(e)}")
+            logger.error(f"Error executing tool {tool_name}: {e!s}")
             return {
                 "jsonrpc": "2.0",
-                "error": {"code": -32603, "message": f"Tool execution failed: {str(e)}"},
+                "error": {
+                    "code": -32603,
+                    "message": f"Tool execution failed: {e!s}",
+                },
                 "id": request_id,
             }
 
@@ -243,11 +567,17 @@ def mcp_endpoint():
     logger.info(f"Received MCP request: {data}")
 
     if not data:
-        return jsonify({"jsonrpc": "2.0", "error": {"code": -32700, "message": "Parse error"}, "id": None}), 400
+        return jsonify(
+            {
+                "jsonrpc": "2.0",
+                "error": {"code": -32700, "message": "Parse error"},
+                "id": None,
+            }
+        ), 400
 
     response = handle_jsonrpc_request(data)
     status_code = 200
-    
+
     if "error" in response:
         # Map error codes to HTTP status codes
         code = response["error"].get("code", -32000)
@@ -257,7 +587,7 @@ def mcp_endpoint():
             status_code = 404
         else:
             status_code = 500
-            
+
     return jsonify(response), status_code
 
 
@@ -270,24 +600,27 @@ def health_check():
 @app.route("/", methods=["GET"])
 def root():
     """Root endpoint with server info"""
-    return jsonify({
-        "name": "Grafana MCP Server",
-        "version": "1.0.0",
-        "status": "running",
-        "endpoints": {
-            "mcp": "/mcp",
-            "health": "/health"
+    return jsonify(
+        {
+            "name": "Grafana MCP Server",
+            "version": "1.0.0",
+            "status": "running",
+            "endpoints": {"mcp": "/mcp", "health": "/health"},
         }
-    })
+    )
 
 
 def main():
     """Main entry point"""
     transport = os.environ.get("MCP_TRANSPORT", "http")
-    
+
     if ("-t" in sys.argv and "stdio" in sys.argv) or ("--transport" in sys.argv and "stdio" in sys.argv) or (transport == "stdio"):
-        print("STDIO mode not yet implemented in Phase 1")
-        sys.exit(1)
+
+        def stdio_handler(data):
+            with app.app_context():
+                return handle_jsonrpc_request(data)
+
+        run_stdio_server(stdio_handler)
     else:
         # HTTP mode
         port = app.config["SERVER_CONFIG"].get("port", 8000)

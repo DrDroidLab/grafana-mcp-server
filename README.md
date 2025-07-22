@@ -1,121 +1,296 @@
 # Grafana MCP Server
 
-A Model Context Protocol (MCP) server for Grafana that enables AI assistants to interact with Grafana dashboards, panels, and data sources.
+## Available Tools
 
-## Features
+The following tools are available via the MCP server:
 
-- Connect to Grafana instances via API
-- Retrieve dashboard and panel information
-- Query data sources and metrics
-- Manage Grafana resources through MCP protocol
-- Docker support for easy deployment
+- **test_connection**: Verify connectivity to your Grafana instance and configuration.
+- **grafana_promql_query**: Execute PromQL queries against Grafana's Prometheus datasource. Fetches metrics data using PromQL expressions, optimizes time series responses to reduce token size.
+- **grafana_loki_query**: Query Grafana Loki for log data. Fetches logs for a specified duration (e.g., '5m', '1h', '2d'), converts relative time to absolute timestamps.
+- **grafana_get_dashboard_config**: Retrieves dashboard configuration details from the database. Queries the connectors_connectormetadatamodelstore table for dashboard metadata.
+- **grafana_query_dashboard_panels**: Execute queries for specific dashboard panels. Can query up to 4 panels at once, supports template variables, optimizes metrics data.
+- **grafana_fetch_label_values**: Fetch label values for dashboard variables from Prometheus datasource. Retrieves available values for specific labels (e.g., 'instance', 'job').
+- **grafana_fetch_dashboard_variables**: Fetch all variables and their values from a Grafana dashboard. Retrieves dashboard template variables and their current values.
+- **grafana_fetch_all_dashboards**: Fetch all dashboards from Grafana with basic information like title, UID, folder, tags, etc.
+- **grafana_fetch_datasources**: Fetch all datasources from Grafana with their configuration details.
+- **grafana_fetch_folders**: Fetch all folders from Grafana with their metadata and permissions.
 
-## Prerequisites
+## 🚀 Usage & Requirements
 
-- Python 3.8+
-- Grafana instance with API access
-- Grafana API key or admin credentials
+### 1. Get Your Grafana API Endpoint & API Key
 
-## Installation
+1. Ensure you have a running Grafana instance (self-hosted or cloud).
+2. Generate an API key from your Grafana UI:
+   - Go to Configuration → API Keys
+   - Create a new API key with appropriate permissions (Admin role recommended for full access)
+   - Copy the API key (starts with `glsa_`)
 
-### Using uv (Recommended)
+---
+
+## 2. Installation & Running Options
+
+### 2A. Install & Run with uv (Recommended for Local Development)
+
+#### 2A.1. Install dependencies with uv
 
 ```bash
-# Clone the repository
-git clone <your-repo-url>
-cd grafana-mcp-server
-
-# Install dependencies
+uv venv .venv
+source .venv/bin/activate
 uv sync
-
-# Activate virtual environment
-source .venv/bin/activate  # On Unix/macOS
-# or
-.venv\Scripts\activate     # On Windows
 ```
 
-### Using pip
+#### 2A.2. Run the server with uv
 
 ```bash
-# Clone the repository
-git clone <your-repo-url>
-cd grafana-mcp-server
-
-# Install dependencies
-pip install -e .
+uv run grafana-mcp-server/src/grafana_mcp_server/mcp_server.py
 ```
 
-## Configuration
+- You can also use `uv` to run any other entrypoint scripts as needed.
+- Make sure your `config.yaml` is in the same directory as `mcp_server.py` or set the required environment variables (see Configuration section).
 
-1. Copy the example configuration:
+---
+
+### 2B. Run with Docker Compose (Recommended for Production/Containerized Environments)
+
+1. Edit `grafana-mcp-server/src/grafana_mcp_server/config.yaml` with your Grafana details (host, API key).
+2. Start the server:
+   ```bash
+   docker compose up -d
+   ```
+   - The server will run in HTTP (SSE) mode on port 8000 by default.
+   - You can override configuration with environment variables (see below).
+
+---
+
+### 2C. Run with Docker Image (Manual)
+
+1. Build the image:
+   ```bash
+   docker build -t grafana-mcp-server .
+   ```
+2. Run the container (YAML config fallback):
+   ```bash
+   docker run -d \
+     -p 8000:8000 \
+     -v $(pwd)/grafana-mcp-server/src/grafana_mcp_server/config.yaml:/app/config.yaml:ro \
+     --name grafana-mcp-server \
+     grafana-mcp-server
+   ```
+3. **Or run with environment variables (recommended for CI/Docker MCP clients):**
+   ```bash
+   docker run -d \
+     -p 8000:8000 \
+     -e GRAFANA_HOST="https://your-grafana-instance.com" \
+     -e GRAFANA_API_KEY="your-grafana-api-key-here" \
+     -e GRAFANA_SSL_VERIFY="true" \
+     -e MCP_SERVER_PORT=8000 \
+     -e MCP_SERVER_DEBUG=true \
+     --name grafana-mcp-server \
+     grafana-mcp-server
+   ```
+
+---
+
+## 3. Configuration
+
+The server loads configuration in the following order of precedence:
+
+1. **Environment Variables** (recommended for Docker/CI):
+   - `GRAFANA_HOST`: Grafana instance URL (e.g. `https://your-grafana-instance.com`)
+   - `GRAFANA_API_KEY`: Grafana API key (required)
+   - `GRAFANA_SSL_VERIFY`: `true` or `false` (default: `true`)
+   - `MCP_SERVER_PORT`: Port to run the server on (default: `8000`)
+   - `MCP_SERVER_DEBUG`: `true` or `false` (default: `true`)
+2. **YAML file fallback** (`config.yaml`):
+   ```yaml
+   grafana:
+     host: "https://your-grafana-instance.com"
+     api_key: "your-grafana-api-key-here"
+     ssl_verify: "true"
+   server:
+     port: 8000
+     debug: true
+   ```
+
+---
+
+## 4. Integration with AI Assistants (e.g., Claude Desktop, Cursor)
+
+You can integrate this MCP server with any tool that supports the MCP protocol. Here are the main options:
+
+### 4A. Using Local Setup (with uv)
+
+Before running the server locally, install dependencies and run with uv:
 
 ```bash
-cp grafana-mcp-server/src/grafana_mcp_server/config.yaml.example grafana-mcp-server/src/grafana_mcp_server/config.yaml
+uv sync
 ```
 
-2. Edit the configuration file with your Grafana settings:
+Then add to your client configuration (e.g., `claude-desktop.json`):
+
+```json
+{
+  "mcpServers": {
+    "grafana": {
+      "command": "uv",
+      "args": [
+        "run",
+        "/full/path/to/grafana-mcp-server/src/grafana_mcp_server/mcp_server.py"
+      ],
+      "env": {
+        "GRAFANA_HOST": "https://your-grafana-instance.com",
+        "GRAFANA_API_KEY": "your-grafana-api-key-here",
+        "GRAFANA_SSL_VERIFY": "true"
+      }
+    }
+  }
+}
+```
+
+- Ensure your `config.yaml` is in the same directory as `mcp_server.py` or update the path accordingly.
+
+### 4B. Using Docker Compose or Docker (with environment variables)
+
+```json
+{
+  "mcpServers": {
+    "grafana": {
+      "command": "docker",
+      "args": [
+        "run",
+        "--rm",
+        "-i",
+        "-e",
+        "GRAFANA_HOST",
+        "-e",
+        "GRAFANA_API_KEY",
+        "-e",
+        "GRAFANA_SSL_VERIFY",
+        "grafana-mcp-server",
+        "-t",
+        "stdio"
+      ],
+      "env": {
+        "GRAFANA_HOST": "https://your-grafana-instance.com",
+        "GRAFANA_API_KEY": "your-grafana-api-key-here",
+        "GRAFANA_SSL_VERIFY": "true"
+      }
+    }
+  }
+}
+```
+
+- The `-t stdio` argument is supported for compatibility with Docker MCP clients (forces stdio handshake mode).
+- Adjust the volume path or environment variables as needed for your deployment.
+
+### 4C. Connecting to an Already Running MCP Server (HTTP/SSE)
+
+If you have an MCP server already running (e.g., on a remote host, cloud VM, or Kubernetes), you can connect your AI assistant or tool directly to its HTTP endpoint.
+
+#### Example: Claude Desktop or Similar Tool
+
+```json
+{
+  "mcpServers": {
+    "grafana": {
+      "url": "http://your-server-host:8000/mcp"
+    }
+  }
+}
+```
+
+- Replace `your-server-host` with the actual host where your MCP server is running.
+- **For local setup, use `localhost` as the server host (i.e., `http://localhost:8000/mcp`).**
+- **Use `http` for local or unsecured deployments, and `https` for production or secured deployments.**
+- Make sure the server is accessible from your client machine (check firewall, security group, etc.).
+
+#### Example: MCP Config YAML
 
 ```yaml
-grafana:
-  url: "http://localhost:3000"
-  api_key: "your-api-key-here"
-  # or use username/password
-  # username: "admin"
-  # password: "admin"
+mcp:
+  endpoint: "http://your-server-host:8000/mcp"
+  protocolVersion: "2025-06-18"
 ```
 
-## Usage
+- Replace `your-server-host` with the actual host where your MCP server is running.
+- **For local setup, use `localhost` as the server host (i.e., `http://localhost:8000/mcp`).**
+- **Use `http` or `https` in the URL schema depending on how you've deployed the MCP server.**
+- No need to specify `command` or `args`—just point to the HTTP endpoint.
+- This works for any tool or assistant that supports MCP over HTTP.
+- The server must be running in HTTP (SSE) mode (the default for this implementation).
 
-### Running the MCP Server
+---
+
+## Health Check
 
 ```bash
-# From the project root
-python -m grafana_mcp_server.mcp_server
-
-# Or using the stdio server
-python -m grafana_mcp_server.stdio_server
+curl http://localhost:8000/health
 ```
 
-### Testing Connection
+The server runs on port 8000 by default.
 
-```bash
-# Test Grafana connection
-python -m grafana_mcp_server.test_grafana_connection
+---
+
+## 6. Example Usage
+
+### Query Prometheus Metrics
+
+```python
+# Example PromQL query
+result = grafana_promql_query(
+    datasource_uid="prometheus",
+    query="rate(http_requests_total[5m])",
+    duration="1h"
+)
 ```
 
-### Using Docker
+### Query Loki Logs
 
-```bash
-# Build the Docker image
-docker build -t grafana-mcp-server .
-
-# Run the container
-docker run -p 3000:3000 grafana-mcp-server
+```python
+# Example Loki query
+result = grafana_loki_query(
+    query='{job="myapp"} |= "error"',
+    duration="30m",
+    limit=50
+)
 ```
 
-Or using docker-compose:
+### Fetch Dashboard Data
 
-```bash
-docker-compose up -d
+```python
+# Get dashboard panels data
+result = grafana_query_dashboard_panels(
+    dashboard_uid="your-dashboard-uid",
+    panel_ids=[1, 2, 3],
+    template_variables={"service": "myapp"}
+)
 ```
 
-## Development
+### List All Dashboards
 
-### Project Structure
+```python
+# Get all dashboards
+result = grafana_fetch_all_dashboards(limit=50)
+```
+
+---
+
+## 7. Project Structure
 
 ```
 grafana-mcp-server/
-├── src/
-│   └── grafana_mcp_server/
-│       ├── __init__.py
-│       ├── config.yaml
-│       ├── mcp_server.py          # Main MCP server implementation
-│       ├── stdio_server.py        # STDIO server for MCP
-│       ├── test_grafana_connection.py
-│       └── processor/
+├── grafana-mcp-server/
+│   └── src/
+│       └── grafana_mcp_server/
 │           ├── __init__.py
-│           ├── grafana_processor.py
-│           └── processor.py
+│           ├── config.yaml              # Configuration file
+│           ├── mcp_server.py            # Main MCP server implementation
+│           ├── stdio_server.py          # STDIO server for MCP
+│           ├── test_grafana_connection.py
+│           └── processor/
+│               ├── __init__.py
+│               ├── grafana_processor.py # Grafana API processor
+│               └── processor.py         # Base processor interface
 ├── tests/
 ├── Dockerfile
 ├── docker-compose.yml
@@ -123,14 +298,15 @@ grafana-mcp-server/
 └── README.md
 ```
 
+---
+
+## 8. Development
+
 ### Running Tests
 
 ```bash
-# Run all tests
-pytest
-
-# Run with coverage
-pytest --cov=grafana_mcp_server
+# The test_grafana_connection.py file has been removed
+# You can test the connection using the MCP server's test_connection tool
 ```
 
 ### Code Quality
@@ -146,28 +322,39 @@ flake8 .
 mypy .
 ```
 
-## API Reference
+---
 
-### MCP Tools
+## 9. Troubleshooting
 
-The server provides the following MCP tools:
+### Common Issues
 
-- `test_connection`: Test connection to Grafana API
-- `list_dashboards`: List all available dashboards
-- `get_dashboard`: Get details of a specific dashboard
-- `list_panels`: List panels in a dashboard
-- `query_data`: Query data from a specific panel or data source
+1. **Connection Failed**:
 
-### Configuration Options
+   - Verify your Grafana instance is running and accessible
+   - Check your API key has proper permissions
+   - Ensure SSL verification settings match your setup
 
-| Option             | Description                 | Default                 |
-| ------------------ | --------------------------- | ----------------------- |
-| `grafana.url`      | Grafana instance URL        | `http://localhost:3000` |
-| `grafana.api_key`  | API key for authentication  | None                    |
-| `grafana.username` | Username for authentication | None                    |
-| `grafana.password` | Password for authentication | None                    |
+2. **Authentication Errors**:
 
-## Contributing
+   - Verify your API key is correct and not expired
+   - Check if your Grafana instance requires additional authentication
+
+3. **Query Failures**:
+   - Ensure datasource UIDs are correct
+   - Verify PromQL/Loki query syntax
+   - Check if the datasource is accessible with your API key
+
+### Debug Mode
+
+Enable debug mode to get more detailed logs:
+
+```bash
+export MCP_SERVER_DEBUG=true
+```
+
+---
+
+## 10. Contributing
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
@@ -175,10 +362,16 @@ The server provides the following MCP tools:
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-## License
+---
+
+## 11. License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Support
+---
 
-For support and questions, please open an issue on GitHub or contact the maintainers.
+## 12. Support
+
+1. Need help anywhere? Join our [slack community](https://join.slack.com/t/doctor-droid-demo/shared_invite/zt-2h6eap61w-Bmz76OEU6IykmDy673R1qQ) and message on #mcp channel.
+2. Want a 1-click MCP Server? Join the same community and let us know.
+3. For issues and questions, please open an issue on GitHub or contact the maintainers.
