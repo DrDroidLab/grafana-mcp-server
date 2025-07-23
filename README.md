@@ -103,12 +103,15 @@ Then add to your client configuration (e.g., `claude-desktop.json`):
 {
   "mcpServers": {
     "grafana": {
-      "command": "uv",
+      "command": "/path/to/uv",
       "args": [
+        "--directory",
+        "/full/path/to/grafana-mcp-server",
         "run",
-        "/full/path/to/grafana-mcp-server/src/grafana_mcp_server/mcp_server.py"
+        "src/grafana_mcp_server/mcp_server.py"
       ],
       "env": {
+        "MCP_TRANSPORT": "stdio",
         "GRAFANA_HOST": "https://your-grafana-instance.com",
         "GRAFANA_API_KEY": "your-grafana-api-key-here",
         "GRAFANA_SSL_VERIFY": "true"
@@ -118,7 +121,9 @@ Then add to your client configuration (e.g., `claude-desktop.json`):
 }
 ```
 
-- Ensure your `config.yaml` is in the same directory as `mcp_server.py` or update the path accordingly.
+- The path to uv can be found by running `which uv` on MacOS/Linux or `where uv` on Windows.
+- Ensure your `config.yaml` is in the correct directory for each server or set the required environment variables.
+- Update the `command`, `args`, and `env` fields as needed for your environment.
 
 ### 4B. Using Docker (with environment variables)
 
