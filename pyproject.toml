@@ -90,7 +90,8 @@ python_functions = "test_*"
 markers = [
     "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
     "flaky(max_runs=3): marks test as flaky and allows retries",
-    "slow: marks tests as slow running"
+    "slow: marks tests as slow running",
+    "timeout: marks tests that may timeout"
 ]
 
 [tool.ruff]

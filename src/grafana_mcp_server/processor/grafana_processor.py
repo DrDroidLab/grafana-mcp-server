@@ -253,6 +253,7 @@ class GrafanaApiProcessor(Processor):
 
     def grafana_loki_query(
         self,
+        datasource_uid: str,
         query: str,
         duration: Optional[str] = None,
         start_time: Optional[str] = None,
@@ -285,7 +286,7 @@ class GrafanaApiProcessor(Processor):
                     {
                         "refId": "A",
                         "expr": query,
-                        "datasource": {"type": "loki"},
+                        "datasource": {"type": "loki", "uid": datasource_uid},
                         "maxLines": limit,
                     }
                 ],
@@ -391,7 +392,15 @@ class GrafanaApiProcessor(Processor):
 
             dashboard_data = dashboard_response.json()
             dashboard = dashboard_data.get("dashboard", {})
+            
+            # Handle both old and new dashboard structures
             panels = dashboard.get("panels", [])
+            if not panels:
+                # Try to get panels from rows (newer dashboard structure)
+                rows = dashboard.get("rows", [])
+                for row in rows:
+                    row_panels = row.get("panels", [])
+                    panels.extend(row_panels)
 
             logger.info(f"Found {len(panels)} panels in dashboard")
 

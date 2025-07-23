@@ -149,11 +149,17 @@ TOOLS_LIST = [
     {
         "name": "grafana_loki_query",
         "description": "Queries Grafana Loki for log data. Fetches logs for a specified duration "
-        "(e.g., '5m', '1h', '2d'), converts relative time to absolute timestamps.",
+        "(e.g., '5m', '1h', '2d'), converts relative time to absolute timestamps. "
+        "Note: Loki queries require at least one non-empty matcher. Use patterns like '{job=~\".+\"}' "
+        "instead of '{job=~\".*\"}' or '{}' to avoid syntax errors.",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "query": {"type": "string", "description": "Loki query string"},
+                "datasource_uid": {
+                    "type": "string",
+                    "description": "Loki datasource UID",
+                },
+                "query": {"type": "string", "description": "Loki query string (e.g., '{job=~\".+\"}' or '{app=\"myapp\"}')"},
                 "duration": {
                     "type": "string",
                     "description": "Time duration (e.g., '5m', '1h', '2d') - overrides start_time/end_time if provided",
@@ -172,7 +178,7 @@ TOOLS_LIST = [
                     "default": 100,
                 },
             },
-            "required": ["query"],
+            "required": ["datasource_uid", "query"],
         },
     },
     {
@@ -308,7 +314,7 @@ def grafana_promql_query(datasource_uid, query, start_time=None, end_time=None, 
         return {"status": "error", "message": f"PromQL query failed: {e!s}"}
 
 
-def grafana_loki_query(query, duration=None, start_time=None, end_time=None, limit=100):
+def grafana_loki_query(datasource_uid, query, duration=None, start_time=None, end_time=None, limit=100):
     """Query Grafana Loki for log data"""
     try:
         grafana_processor = current_app.config.get("grafana_processor")
@@ -318,7 +324,7 @@ def grafana_loki_query(query, duration=None, start_time=None, end_time=None, lim
                 "message": "Grafana processor not initialized. Check configuration.",
             }
 
-        result = grafana_processor.grafana_loki_query(query, duration, start_time, end_time, limit)
+        result = grafana_processor.grafana_loki_query(datasource_uid, query, duration, start_time, end_time, limit)
         return result
     except Exception as e:
         logger.error(f"Error executing Loki query: {e!s}")
