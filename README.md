@@ -137,7 +137,7 @@ Then add to your client configuration (e.g., `claude-desktop.json`):
         "GRAFANA_API_KEY",
         "-e",
         "GRAFANA_SSL_VERIFY",
-        "grafana-mcp-server",
+        "ddroid/grafana-mcp-server",
         "-t",
         "stdio"
       ],
