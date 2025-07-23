@@ -2,10 +2,10 @@
 
 grafana:
   # Grafana instance URL (required)
-  host: "your-host"
+  host: <host>
 
-  api_key: "your-api-key"
-  ssl_verify: "true"
+  api_key: <api_key>
+  ssl_verify: <ssl_verify>
 
 server:
   # Port to run the MCP server on
