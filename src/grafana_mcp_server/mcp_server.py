@@ -149,11 +149,17 @@ TOOLS_LIST = [
     {
         "name": "grafana_loki_query",
         "description": "Queries Grafana Loki for log data. Fetches logs for a specified duration "
-        "(e.g., '5m', '1h', '2d'), converts relative time to absolute timestamps.",
+        "(e.g., '5m', '1h', '2d'), converts relative time to absolute timestamps. "
+        "Note: Loki queries require at least one non-empty matcher. Use patterns like '{job=~\".+\"}' "
+        "instead of '{job=~\".*\"}' or '{}' to avoid syntax errors.",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "query": {"type": "string", "description": "Loki query string"},
+                "datasource_uid": {
+                    "type": "string",
+                    "description": "Loki datasource UID",
+                },
+                "query": {"type": "string", "description": "Loki query string (e.g., '{job=~\".+\"}' or '{app=\"myapp\"}')"},
                 "duration": {
                     "type": "string",
                     "description": "Time duration (e.g., '5m', '1h', '2d') - overrides start_time/end_time if provided",
@@ -172,7 +178,7 @@ TOOLS_LIST = [
                     "default": 100,
                 },
             },
-            "required": ["query"],
+            "required": ["datasource_uid", "query"],
         },
     },
     {
