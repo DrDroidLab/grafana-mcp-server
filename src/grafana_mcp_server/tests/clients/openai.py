@@ -2,7 +2,7 @@ import json
 from typing import Any, Optional
 
 from openai import OpenAI
-from tests.clients.grafana import GrafanaMCPClient
+from src.grafana_mcp_server.tests.clients.grafana import GrafanaMCPClient
 
 
 class OpenAIMCPClient:

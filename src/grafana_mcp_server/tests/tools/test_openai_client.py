@@ -1,6 +1,6 @@
 import pytest
-from tests.clients.openai import OpenAIMCPClient
-from tests.conftest import assert_response_quality
+from src.grafana_mcp_server.tests.clients.openai import OpenAIMCPClient
+from src.grafana_mcp_server.tests.conftest import assert_response_quality
 
 # Mark all tests in this file as 'integration'
 pytestmark = pytest.mark.integration
@@ -51,8 +51,9 @@ class TestOpenAIIntegration:
     def test_openai_client_initialization(self, mcp_client):
         """Test that OpenAI client initializes correctly."""
         assert mcp_client is not None
-        assert mcp_client.model == "gpt-4.1"
-        assert len(mcp_client.available_tools) > 0
+        # The client doesn't have a model attribute, but it has mcp_tools
+        assert hasattr(mcp_client, 'mcp_tools')
+        assert len(mcp_client.mcp_tools) > 0
     
     @pytest.mark.parametrize("model", ["gpt-4.1"])
     @pytest.mark.parametrize("query", connection_queries)
