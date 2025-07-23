@@ -392,7 +392,7 @@ class GrafanaApiProcessor(Processor):
 
             dashboard_data = dashboard_response.json()
             dashboard = dashboard_data.get("dashboard", {})
-            
+
             # Handle both old and new dashboard structures
             panels = dashboard.get("panels", [])
             if not panels:

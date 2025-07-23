@@ -1,7 +1,8 @@
+import os
+from typing import List, Optional
+
 import pytest
 import yaml
-import os
-from typing import Any, List, Optional
 
 # Import your processor (adjust import path as needed)
 from src.grafana_mcp_server.processor.grafana_processor import GrafanaApiProcessor
@@ -21,10 +22,10 @@ def grafana_config():
     config_path = "src/grafana_mcp_server/config.yaml"  # Adjust path as needed
     if not os.path.exists(config_path):
         pytest.skip(f"Config file not found at {config_path}")
-    
-    with open(config_path, "r") as f:
+
+    with open(config_path) as f:
         config = yaml.safe_load(f)
-    return config['grafana']
+    return config["grafana"]
 
 
 @pytest.fixture(scope="session")
@@ -33,9 +34,7 @@ def grafana_processor(grafana_config):
     Provides a GrafanaApiProcessor instance configured for live API testing.
     """
     return GrafanaApiProcessor(
-        grafana_host=grafana_config["host"],
-        grafana_api_key=grafana_config.get("api_key"),
-        ssl_verify=str(grafana_config.get("ssl_verify", "true"))
+        grafana_host=grafana_config["host"], grafana_api_key=grafana_config.get("api_key"), ssl_verify=str(grafana_config.get("ssl_verify", "true"))
     )
 
 
@@ -44,7 +43,8 @@ def app():
     """
     Provides a test instance of the Flask application.
     """
-    from src.grafana_mcp_server.mcp_server import app as flask_app  # Adjust import
+    from src.grafana_mcp_server.mcp_server import app as flask_app
+
     flask_app.config.update({"TESTING": True})
     return flask_app
 
@@ -58,9 +58,7 @@ def client(app):
 @pytest.fixture(scope="session")
 def openai_api_key():
     """Fixture to get the OpenAI API key."""
-    config_path = os.path.join(
-        os.path.dirname(__file__), "../src/grafana_mcp_server/config.yaml"
-    )
+    config_path = os.path.join(os.path.dirname(__file__), "../src/grafana_mcp_server/config.yaml")
     config = {}
     if os.path.exists(config_path):
         try:
@@ -68,7 +66,7 @@ def openai_api_key():
                 config = yaml.safe_load(f)
         except yaml.YAMLError:
             pass  # Ignore malformed config
-    
+
     key = config.get("openai", {}).get("api_key") if config else None
     return key
 
@@ -78,10 +76,10 @@ def evaluator(openai_api_key):
     """Fixture to create a GrafanaResponseEvaluator instance for testing."""
     if GrafanaResponseEvaluator is None:
         pytest.skip("langevals not available - install with: pip install 'langevals[openai]'")
-    
+
     if not openai_api_key:
         pytest.skip("OpenAI API key required for evaluation")
-    
+
     # Use gpt-4o-mini for cost-effective testing
     return GrafanaResponseEvaluator(model="gpt-4o-mini")
 
@@ -93,6 +91,7 @@ def mcp_client(openai_api_key, client):
         pytest.skip("OpenAI API key not available")
 
     from tests.clients.openai import OpenAIMCPClient
+
     mcp_client_instance = OpenAIMCPClient(
         test_client=client,
         openai_api_key=openai_api_key,
@@ -129,15 +128,15 @@ def pytest_configure(config):
 
 def assert_response_quality(
     prompt: str,
-    response: str, 
+    response: str,
     evaluator,
     min_pass_rate: float = 0.8,
     specific_checks: Optional[List[str]] = None,
-    required_checks: Optional[List[str]] = None
+    required_checks: Optional[List[str]] = None,
 ):
     """
     Assert response quality using LLM evaluation.
-    
+
     Args:
         prompt: The input prompt
         response: The generated response
@@ -148,18 +147,9 @@ def assert_response_quality(
     """
     if evaluator is None:
         pytest.skip("LLM evaluator not available")
-    
-    from tests.utils import evaluate_response_quality, assert_evaluation_passes
-    
-    results = evaluate_response_quality(
-        prompt=prompt,
-        response=response,
-        evaluator=evaluator,
-        specific_checks=specific_checks
-    )
-    
-    assert_evaluation_passes(
-        evaluation_results=results,
-        min_pass_rate=min_pass_rate,
-        required_checks=required_checks
-    )
+
+    from tests.utils import assert_evaluation_passes, evaluate_response_quality
+
+    results = evaluate_response_quality(prompt=prompt, response=response, evaluator=evaluator, specific_checks=specific_checks)
+
+    assert_evaluation_passes(evaluation_results=results, min_pass_rate=min_pass_rate, required_checks=required_checks)

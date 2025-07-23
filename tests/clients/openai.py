@@ -2,7 +2,8 @@ import json
 from typing import Any, Optional
 
 from openai import OpenAI
-from src.grafana_mcp_server.tests.clients.grafana import GrafanaMCPClient
+
+from tests.clients.grafana import GrafanaMCPClient
 
 
 class OpenAIMCPClient:
@@ -19,9 +20,7 @@ class OpenAIMCPClient:
             raise ValueError("OpenAI API key must be provided for testing.")
 
         self.openai_client = OpenAI(api_key=openai_api_key)
-        self.mcp_client = GrafanaMCPClient(
-            test_client=test_client, api_key=mcp_api_key
-        )
+        self.mcp_client = GrafanaMCPClient(test_client=test_client, api_key=mcp_api_key)
         self.mcp_tools = self._get_mcp_tools()
 
     def _get_mcp_tools(self):
@@ -38,9 +37,7 @@ class OpenAIMCPClient:
                             "function": {
                                 "name": tool_name,
                                 "description": tool.get("description"),
-                                "parameters": tool.get(
-                                    "parameters", {"type": "object", "properties": {}}
-                                ),
+                                "parameters": tool.get("parameters", {"type": "object", "properties": {}}),
                             },
                         }
                     )
@@ -78,9 +75,7 @@ class OpenAIMCPClient:
             function_name = tool_call.function.name
             function_args = json.loads(tool_call.function.arguments)
             try:
-                tool_result = self.mcp_client.execute_tool(
-                    tool_name=function_name, parameters=function_args
-                )
+                tool_result = self.mcp_client.execute_tool(tool_name=function_name, parameters=function_args)
             except Exception as e:
                 tool_result = {"error": str(e)}
             messages.append(
@@ -92,9 +87,7 @@ class OpenAIMCPClient:
                 }
             )
         # Get the final response after tool call(s)
-        completion2 = self.openai_client.chat.completions.create(
-            model=model, messages=messages, stream=False, temperature=0, **kwargs
-        )
+        completion2 = self.openai_client.chat.completions.create(model=model, messages=messages, stream=False, temperature=0, **kwargs)
         final_content = ""
         for choice in completion2.choices:
             if hasattr(choice, "message") and choice.message and choice.message.content:

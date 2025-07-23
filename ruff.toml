@@ -47,7 +47,7 @@ unfixable = []
 # Ignore specific rules for specific files
 [lint.per-file-ignores]
 "__init__.py" = ["F401", "F403"]  # Ignore unused imports in __init__ files
-"tests/**/*.py" = ["B", "C4", "E501", "F811"]  # Looser rules for test files
+"tests/**/*.py" = ["B", "C4", "E501", "F811", "S101", "UP035", "UP006"]  # Looser rules for test files
 "**/*_server.py" = ["S104"]
 
 
