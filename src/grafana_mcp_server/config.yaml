@@ -13,3 +13,7 @@ server:
 
   # Debug mode
   debug: true
+
+#this is for testing purposes only
+openai:
+  api_key: "your openai api key"
