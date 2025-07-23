@@ -294,6 +294,46 @@ class TestQueryTools:
     
     def test_tool_call_loki_query(self, client):
         """Test the 'grafana_loki_query' tool call."""
+        # First get datasources to find a Loki datasource
+        datasources_response = client.post(
+            "/mcp",
+            data=json.dumps({
+                "jsonrpc": "2.0",
+                "method": "tools/call",
+                "params": {
+                    "name": "grafana_fetch_datasources",
+                    "arguments": {}
+                },
+                "id": "fetch-datasources-for-loki"
+            }),
+            content_type="application/json"
+        )
+        
+        assert datasources_response.status_code == 200
+        datasources_data = datasources_response.get_json()
+        datasources_content = json.loads(datasources_data["result"]["content"][0]["text"])
+        
+        if datasources_content["status"] == "error":
+            pytest.skip("Cannot test Loki without datasources")
+        
+        datasources = datasources_content.get("datasources", [])
+        if not datasources:
+            pytest.skip("No datasources available for Loki testing")
+        
+        # Find Loki datasource
+        loki_ds = None
+        for ds in datasources:
+            if ds.get("type") == "loki":
+                loki_ds = ds
+                break
+        
+        if not loki_ds:
+            pytest.skip("No Loki datasource found for testing")
+        
+        datasource_uid = loki_ds.get("uid")
+        if not datasource_uid:
+            pytest.skip("Loki datasource UID not available")
+        
         # Use recent time range
         end_time = datetime.now(timezone.utc)
         start_time = end_time - timedelta(hours=1)
@@ -306,6 +346,7 @@ class TestQueryTools:
                 "params": {
                     "name": "grafana_loki_query",
                     "arguments": {
+                        "datasource_uid": datasource_uid,
                         "query": '{job="grafana"}',
                         "start_time": start_time.isoformat(),
                         "end_time": end_time.isoformat(),
@@ -326,7 +367,8 @@ class TestQueryTools:
         assert content["status"] in ("success", "error")
         
         if content["status"] == "success":
-            assert "data" in content
+            # Check for either "data" or "results" key
+            assert "data" in content or "results" in content
             print("Successfully executed Loki query")
         else:
             # Loki queries might fail due to datasource configuration

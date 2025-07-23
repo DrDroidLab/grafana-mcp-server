@@ -137,9 +137,31 @@ class TestGrafanaQueries:
         # Should contain query results
         assert isinstance(result, dict)
     
-    @pytest.mark.skip(reason="Loki query requires specific datasource configuration")
     def test_loki_query(self, processor):
         """Test Loki query execution."""
+        # First get datasources to find a Loki datasource
+        datasources_result = processor.grafana_fetch_datasources()
+        if isinstance(datasources_result, dict) and datasources_result.get("status") == "error":
+            pytest.skip(f"Cannot test Loki without datasources: {datasources_result.get('message')}")
+        
+        datasources = datasources_result.get("datasources", [])
+        if not datasources:
+            pytest.skip("No datasources available for Loki testing")
+        
+        # Find Loki datasource
+        loki_ds = None
+        for ds in datasources:
+            if ds.get("type") == "loki":
+                loki_ds = ds
+                break
+        
+        if not loki_ds:
+            pytest.skip("No Loki datasource found for testing")
+        
+        datasource_uid = loki_ds.get("uid")
+        if not datasource_uid:
+            pytest.skip("Loki datasource UID not available")
+        
         # Simple test query
         query = '{job="grafana"}'
         
@@ -148,6 +170,7 @@ class TestGrafanaQueries:
         start_time = end_time - timedelta(hours=1)
         
         result = processor.grafana_loki_query(
+            datasource_uid=datasource_uid,
             query=query,
             start_time=start_time.isoformat(),
             end_time=end_time.isoformat(),

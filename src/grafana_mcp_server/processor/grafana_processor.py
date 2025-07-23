@@ -253,6 +253,7 @@ class GrafanaApiProcessor(Processor):
 
     def grafana_loki_query(
         self,
+        datasource_uid: str,
         query: str,
         duration: Optional[str] = None,
         start_time: Optional[str] = None,
@@ -285,7 +286,7 @@ class GrafanaApiProcessor(Processor):
                     {
                         "refId": "A",
                         "expr": query,
-                        "datasource": {"type": "loki"},
+                        "datasource": {"type": "loki", "uid": datasource_uid},
                         "maxLines": limit,
                     }
                 ],
