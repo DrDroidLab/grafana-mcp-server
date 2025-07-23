@@ -62,35 +62,6 @@ uv run grafana-mcp-server/src/grafana_mcp_server/mcp_server.py
 
 ---
 
-### 2C. Run with Docker Image (Manual)
-
-1. Build the image:
-   ```bash
-   docker build -t grafana-mcp-server .
-   ```
-2. Run the container (YAML config fallback):
-   ```bash
-   docker run -d \
-     -p 8000:8000 \
-     -v $(pwd)/grafana-mcp-server/src/grafana_mcp_server/config.yaml:/app/config.yaml:ro \
-     --name grafana-mcp-server \
-     grafana-mcp-server
-   ```
-3. **Or run with environment variables (recommended for CI/Docker MCP clients):**
-   ```bash
-   docker run -d \
-     -p 8000:8000 \
-     -e GRAFANA_HOST="https://your-grafana-instance.com" \
-     -e GRAFANA_API_KEY="your-grafana-api-key-here" \
-     -e GRAFANA_SSL_VERIFY="true" \
-     -e MCP_SERVER_PORT=8000 \
-     -e MCP_SERVER_DEBUG=true \
-     --name grafana-mcp-server \
-     grafana-mcp-server
-   ```
-
----
-
 ## 3. Configuration
 
 The server loads configuration in the following order of precedence:
@@ -149,7 +120,7 @@ Then add to your client configuration (e.g., `claude-desktop.json`):
 
 - Ensure your `config.yaml` is in the same directory as `mcp_server.py` or update the path accordingly.
 
-### 4B. Using Docker Compose or Docker (with environment variables)
+### 4B. Using Docker (with environment variables)
 
 ```json
 {
@@ -186,9 +157,6 @@ Then add to your client configuration (e.g., `claude-desktop.json`):
 ### 4C. Connecting to an Already Running MCP Server (HTTP/SSE)
 
 If you have an MCP server already running (e.g., on a remote host, cloud VM, or Kubernetes), you can connect your AI assistant or tool directly to its HTTP endpoint.
-
-#### Example: Claude Desktop or Similar Tool
-
 ```json
 {
   "mcpServers": {
@@ -203,21 +171,6 @@ If you have an MCP server already running (e.g., on a remote host, cloud VM, or 
 - **For local setup, use `localhost` as the server host (i.e., `http://localhost:8000/mcp`).**
 - **Use `http` for local or unsecured deployments, and `https` for production or secured deployments.**
 - Make sure the server is accessible from your client machine (check firewall, security group, etc.).
-
-#### Example: MCP Config YAML
-
-```yaml
-mcp:
-  endpoint: "http://your-server-host:8000/mcp"
-  protocolVersion: "2025-06-18"
-```
-
-- Replace `your-server-host` with the actual host where your MCP server is running.
-- **For local setup, use `localhost` as the server host (i.e., `http://localhost:8000/mcp`).**
-- **Use `http` or `https` in the URL schema depending on how you've deployed the MCP server.**
-- No need to specify `command` or `args`—just point to the HTTP endpoint.
-- This works for any tool or assistant that supports MCP over HTTP.
-- The server must be running in HTTP (SSE) mode (the default for this implementation).
 
 ---
 
@@ -235,7 +188,6 @@ The server runs on port 8000 by default.
 
 ```
 grafana-mcp-server/
-├── grafana-mcp-server/
 │   └── src/
 │       └── grafana_mcp_server/
 │           ├── __init__.py

@@ -19,7 +19,7 @@ RUN uv lock
 RUN uv sync
 
 # Copy application code
-COPY grafana-mcp-server/src ./src
+COPY ./src ./src
 
 # Create a non-root user for security
 RUN useradd -m -u 1000 mcp && chown -R mcp:mcp /app
