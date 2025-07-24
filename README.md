@@ -42,7 +42,7 @@ uv sync
 #### 2A.2. Run the server with uv
 
 ```bash
-uv run grafana-mcp-server/src/grafana_mcp_server/mcp_server.py
+uv run -m src.grafana_mcp_server.mcp_server
 ```
 
 - You can also use `uv` to run any other entrypoint scripts as needed.
