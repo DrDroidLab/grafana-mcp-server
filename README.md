@@ -227,6 +227,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 9. Support
 
-1. Need help anywhere? Join our [slack community](https://join.slack.com/t/doctor-droid-demo/shared_invite/zt-2h6eap61w-Bmz76OEU6IykmDy673R1qQ) and message on #mcp channel.
+1. Need help anywhere? Join our [discord channel](https://discord.gg/GTzfNMSm) and message on #mcp channel.
 2. Want a 1-click MCP Server? Join the same community and let us know.
 3. For issues and questions, please open an issue on GitHub or contact the maintainers.
