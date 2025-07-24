@@ -17,7 +17,7 @@ The following tools are available via the MCP server:
 
 ## 🚀 Usage & Requirements
 
-### 1. Get Your Grafana API Endpoint & API Key
+### 1. Get Your Grafana API Endpoint & Service Account Token
 
 1. Ensure you have a running Grafana instance (self-hosted or cloud).
 2. Generate a Service Account Token from your Grafana UI:
@@ -68,7 +68,7 @@ The server loads configuration in the following order of precedence:
 
 1. **Environment Variables** (recommended for Docker/CI):
    - `GRAFANA_HOST`: Grafana instance URL (e.g. `https://your-grafana-instance.com`)
-   - `GRAFANA_API_KEY`: Grafana API key (required)
+   - `GRAFANA_API_KEY`: Grafana Service Account Token (required)
    - `GRAFANA_SSL_VERIFY`: `true` or `false` (default: `true`)
    - `MCP_SERVER_PORT`: Port to run the server on (default: `8000`)
    - `MCP_SERVER_DEBUG`: `true` or `false` (default: `true`)
