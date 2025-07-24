@@ -123,7 +123,7 @@ You can integrate this MCP server with any tool that supports the MCP protocol. 
 - The `-t stdio` argument is supported for compatibility with Docker MCP clients (forces stdio handshake mode).
 - Adjust the volume path or environment variables as needed for your deployment.
 
-### 4C. Connecting to an Already Running MCP Server (HTTP/SSE)
+### 4B. Connecting to an Already Running MCP Server (HTTP/SSE)
 
 If you have an MCP server already running (e.g., on a remote host, cloud VM, or Kubernetes), you can connect your AI assistant or tool directly to its HTTP endpoint.
 
@@ -227,6 +227,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 9. Support
 
-1. Need help anywhere? Join our [slack community](https://join.slack.com/t/doctor-droid-demo/shared_invite/zt-2h6eap61w-Bmz76OEU6IykmDy673R1qQ) and message on #mcp channel.
+1. Need help anywhere? Join our [discord channel](https://discord.gg/GTzfNMSm) and message on #mcp channel.
 2. Want a 1-click MCP Server? Join the same community and let us know.
 3. For issues and questions, please open an issue on GitHub or contact the maintainers.
