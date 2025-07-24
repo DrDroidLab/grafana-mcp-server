@@ -20,9 +20,9 @@ The following tools are available via the MCP server:
 ### 1. Get Your Grafana API Endpoint & API Key
 
 1. Ensure you have a running Grafana instance (self-hosted or cloud).
-2. Generate an API key from your Grafana UI:
-   - Go to Configuration → API Keys
-   - Create a new API key with appropriate permissions (Admin role recommended for full access)
+2. Generate a Service Account Token from your Grafana UI:
+   - Create Service Account: In your Grafana dashboard, navigate to Admin >> Users & Access >> Service Accounts >> Create a Service Account
+   - Generate Service Account Key: Within Service Account, create a new API key/token with Viewer permissions.
    - Copy the API key (starts with `glsa_`)
 
 ---
