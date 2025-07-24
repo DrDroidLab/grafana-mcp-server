@@ -440,76 +440,53 @@ class GrafanaApiProcessor(Processor):
             logger.error(f"Error querying dashboard panels: {e!s}")
             raise e
 
-    def grafana_fetch_dashboard_variable_label_values(self, datasource_uid: str, label_name: str) -> dict[str, Any]:
+    def grafana_fetch_dashboard_variable_label_values(self, datasource_uid: str, label_name: str, metric_match_filter: Optional[str] = None) -> dict[str, Any]:
         """
         Fetches label values for dashboard variables from Prometheus datasource.
 
         Args:
             datasource_uid: Prometheus datasource UID
             label_name: Label name to fetch values for (e.g., "instance", "job")
+            metric_match_filter: Optional metric name filter (e.g., "up", "node_cpu_seconds_total")
 
         Returns:
             Dict containing list of available label values
         """
         try:
-            # Use a simple query that returns series with the label we want
-            # This approach is more reliable than trying to use label_values function
-            query = f'up{{{label_name}=~".+"}}'
+            url = f'{self.__host}/api/datasources/proxy/uid/{datasource_uid}/api/v1/label/{label_name}/values'
+            params = {}
 
-            # Get time range (last 1 hour)
-            start_dt, end_dt = self._get_time_range(None, None, "1h", default_hours=1)
-            start_ms = int(start_dt.timestamp() * 1000)
-            end_ms = int(end_dt.timestamp() * 1000)
+            if metric_match_filter:
+                params['match[]'] = metric_match_filter
 
-            payload = {
-                "queries": [
-                    {
-                        "refId": "A",
-                        "expr": query,
-                        "editorMode": "code",
-                        "legendFormat": "__auto",
-                        "range": True,
-                        "exemplar": False,
-                        "requestId": "A",
-                        "utcOffsetSec": 0,
-                        "scopes": [],
-                        "adhocFilters": [],
-                        "interval": "",
-                        "datasource": {"type": "prometheus", "uid": datasource_uid},
-                        "intervalMs": 30000,
-                        "maxDataPoints": 1000,
-                    }
-                ],
-                "from": str(start_ms),
-                "to": str(end_ms),
-            }
+            logger.info(f"Fetching label values for: {label_name} from Prometheus API")
 
-            url = f"{self.__host}/api/ds/query"
-            logger.info(f"Fetching label values for: {label_name}")
-
-            response = requests.post(
-                url,
-                headers=self.headers,
-                json=payload,
+            response = requests.get(
+                url, 
+                headers=self.headers, 
+                params=params, 
                 verify=self.__ssl_verify,
-                timeout=20,
+                timeout=20
             )
-
-            if response.status_code == 200:
-                data = response.json()
-                label_values = self._extract_label_values_from_series(data, label_name)
-
+            
+            if response and response.status_code == 200:
+                label_values = response.json().get('data', [])
+                
                 return {
                     "status": "success",
                     "datasource_uid": datasource_uid,
                     "label_name": label_name,
+                    "metric_match_filter": metric_match_filter,
                     "values": label_values,
                 }
             else:
-                raise Exception(f"Failed to fetch label values. Status: {response.status_code}, Response: {response.text}")
+                status_code = response.status_code if response else None
+                error_msg = f"Failed to fetch label values for {label_name}. Status: {status_code}, Response: {response.text if response else 'No response'}"
+                logger.error(error_msg)
+                raise Exception(error_msg)
 
         except Exception as e:
-            logger.error(f"Error fetching label values: {e!s}")
+            logger.error(f"Exception occurred while fetching promql metric labels for {label_name} with error: {e}")
             raise e
 
     def grafana_fetch_dashboard_variables(self, dashboard_uid: str) -> dict[str, Any]:
@@ -795,47 +772,4 @@ class GrafanaApiProcessor(Processor):
             logger.error(f"Error executing panel query: {e}")
             return {"error": str(e)}
 
-    def _extract_label_values(self, data: dict[str, Any], label_name: str) -> list[str]:
-        """Extract label values from query response"""
-        try:
-            values = []
-            for result in data.get("results", {}).values():
-                if "frames" in result:
-                    for frame in result["frames"]:
-                        if "data" in frame and "values" in frame["data"]:
-                            # Extract string values from the response
-                            frame_values = frame["data"]["values"]
-                            if frame_values and len(frame_values) > 0:
-                                # Filter values based on label_name if available
-                                for v in frame_values[0]:
-                                    if v and str(v).startswith(f"{label_name}="):
-                                        # Extract the value after the label name
-                                        value = str(v).split("=", 1)[1] if "=" in str(v) else str(v)
-                                        values.append(value)
-                                    elif v:
-                                        values.append(str(v))
-            return list(set(values))  # Remove duplicates
-        except Exception as e:
-            logger.error(f"Error extracting label values: {e}")
-            return []
 
-    def _extract_label_values_from_series(self, data: dict[str, Any], label_name: str) -> list[str]:
-        """Extract label values from series data"""
-        try:
-            values = set()
-            for result in data.get("results", {}).values():
-                if "frames" in result:
-                    for frame in result["frames"]:
-                        if "schema" in frame and "fields" in frame["schema"]:
-                            # Look for the label in the field names
-                            for field in frame["schema"]["fields"]:
-                                if "labels" in field and label_name in field["labels"]:
-                                    values.add(field["labels"][label_name])
-                        # Also check in the data if available
-                        if "data" in frame and "values" in frame["data"]:
-                            # This might contain label information in a different format
-                            pass
-            return list(values)
-        except Exception as e:
-            logger.error(f"Error extracting label values from series: {e}")
-            return []
