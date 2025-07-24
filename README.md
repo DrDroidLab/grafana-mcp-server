@@ -123,7 +123,7 @@ You can integrate this MCP server with any tool that supports the MCP protocol. 
 - The `-t stdio` argument is supported for compatibility with Docker MCP clients (forces stdio handshake mode).
 - Adjust the volume path or environment variables as needed for your deployment.
 
-### 4C. Connecting to an Already Running MCP Server (HTTP/SSE)
+### 4B. Connecting to an Already Running MCP Server (HTTP/SSE)
 
 If you have an MCP server already running (e.g., on a remote host, cloud VM, or Kubernetes), you can connect your AI assistant or tool directly to its HTTP endpoint.
 
