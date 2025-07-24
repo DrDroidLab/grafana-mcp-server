@@ -89,43 +89,7 @@ The server loads configuration in the following order of precedence:
 
 You can integrate this MCP server with any tool that supports the MCP protocol. Here are the main options:
 
-### 4A. Using Local Setup (with uv)
-
-Before running the server locally, install dependencies and run with uv:
-
-```bash
-uv sync
-```
-
-Then add to your client configuration (e.g., `claude-desktop.json`):
-
-```json
-{
-  "mcpServers": {
-    "grafana": {
-      "command": "/path/to/uv",
-      "args": [
-        "--directory",
-        "/full/path/to/grafana-mcp-server",
-        "run",
-        "src/grafana_mcp_server/mcp_server.py"
-      ],
-      "env": {
-        "MCP_TRANSPORT": "stdio",
-        "GRAFANA_HOST": "https://your-grafana-instance.com",
-        "GRAFANA_API_KEY": "your-grafana-api-key-here",
-        "GRAFANA_SSL_VERIFY": "true"
-      }
-    }
-  }
-}
-```
-
-- The path to uv can be found by running `which uv` on MacOS/Linux or `where uv` on Windows.
-- Ensure your `config.yaml` is in the correct directory for each server or set the required environment variables.
-- Update the `command`, `args`, and `env` fields as needed for your environment.
-
-### 4B. Using Docker (with environment variables)
+### 4A. Using Docker (with environment variables)
 
 ```json
 {
@@ -142,7 +106,7 @@ Then add to your client configuration (e.g., `claude-desktop.json`):
         "GRAFANA_API_KEY",
         "-e",
         "GRAFANA_SSL_VERIFY",
-        "ddroid/grafana-mcp-server",
+        "drdroidlab/grafana-mcp-server",
         "-t",
         "stdio"
       ],
