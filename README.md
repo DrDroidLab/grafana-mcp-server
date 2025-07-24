@@ -9,7 +9,7 @@ The following tools are available via the MCP server:
 - **grafana_loki_query**: Query Grafana Loki for log data. Fetches logs for a specified duration (e.g., '5m', '1h', '2d'), converts relative time to absolute timestamps.
 - **grafana_get_dashboard_config**: Retrieves dashboard configuration details from the database. Queries the connectors_connectormetadatamodelstore table for dashboard metadata.
 - **grafana_query_dashboard_panels**: Execute queries for specific dashboard panels. Can query up to 4 panels at once, supports template variables, optimizes metrics data.
-- **grafana_fetch_label_values**: Fetch label values for dashboard variables from Prometheus datasource. Retrieves available values for specific labels (e.g., 'instance', 'job').
+- **grafana_fetch_label_values**: Fetch label values for dashboard variables from Prometheus datasource. Retrieves available values for specific labels (e.g., 'instance', 'job'). Supports optional metric filtering.
 - **grafana_fetch_dashboard_variables**: Fetch all variables and their values from a Grafana dashboard. Retrieves dashboard template variables and their current values.
 - **grafana_fetch_all_dashboards**: Fetch all dashboards from Grafana with basic information like title, UID, folder, tags, etc.
 - **grafana_fetch_datasources**: Fetch all datasources from Grafana with their configuration details.
@@ -162,6 +162,7 @@ Then add to your client configuration (e.g., `claude-desktop.json`):
 ### 4C. Connecting to an Already Running MCP Server (HTTP/SSE)
 
 If you have an MCP server already running (e.g., on a remote host, cloud VM, or Kubernetes), you can connect your AI assistant or tool directly to its HTTP endpoint.
+
 ```json
 {
   "mcpServers": {

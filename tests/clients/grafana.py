@@ -177,11 +177,13 @@ class GrafanaMCPClient:
         """Fetch folders via MCP server."""
         return self.execute_tool("grafana_fetch_folders", {})
 
-    def fetch_label_values(self, label: str, datasource_uid: Optional[str] = None) -> Dict[str, Any]:
+    def fetch_label_values(self, label_name: str, datasource_uid: Optional[str] = None, metric_match_filter: Optional[str] = None) -> Dict[str, Any]:
         """Fetch label values via MCP server."""
-        params = {"label": label}
+        params = {"label_name": label_name}
         if datasource_uid:
             params["datasource_uid"] = datasource_uid
+        if metric_match_filter:
+            params["metric_match_filter"] = metric_match_filter
         return self.execute_tool("grafana_fetch_label_values", params)
 
     def fetch_dashboard_variables(self, dashboard_uid: str) -> Dict[str, Any]:

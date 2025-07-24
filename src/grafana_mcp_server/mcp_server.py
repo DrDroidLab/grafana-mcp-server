@@ -227,6 +227,10 @@ TOOLS_LIST = [
                     "type": "string",
                     "description": "Label name to fetch values for (e.g., 'instance', 'job')",
                 },
+                "metric_match_filter": {
+                    "type": "string",
+                    "description": "Optional metric name filter (e.g., 'up', 'node_cpu_seconds_total')",
+                },
             },
             "required": ["datasource_uid", "label_name"],
         },
@@ -371,7 +375,7 @@ def grafana_query_dashboard_panels(dashboard_uid, panel_ids, template_variables=
         }
 
 
-def grafana_fetch_label_values(datasource_uid, label_name):
+def grafana_fetch_label_values(datasource_uid, label_name, metric_match_filter=None):
     """Fetch label values for dashboard variables from Prometheus datasource"""
     try:
         grafana_processor = current_app.config.get("grafana_processor")
@@ -381,7 +385,7 @@ def grafana_fetch_label_values(datasource_uid, label_name):
                 "message": "Grafana processor not initialized. Check configuration.",
             }
 
-        result = grafana_processor.grafana_fetch_dashboard_variable_label_values(datasource_uid, label_name)
+        result = grafana_processor.grafana_fetch_dashboard_variable_label_values(datasource_uid, label_name, metric_match_filter)
         return result
     except Exception as e:
         logger.error(f"Error fetching label values: {e!s}")
