@@ -440,7 +440,9 @@ class GrafanaApiProcessor(Processor):
             logger.error(f"Error querying dashboard panels: {e!s}")
             raise e
 
-    def grafana_fetch_dashboard_variable_label_values(self, datasource_uid: str, label_name: str, metric_match_filter: Optional[str] = None) -> dict[str, Any]:
+    def grafana_fetch_dashboard_variable_label_values(
+        self, datasource_uid: str, label_name: str, metric_match_filter: Optional[str] = None
+    ) -> dict[str, Any]:
         """
         Fetches label values for dashboard variables from Prometheus datasource.
 
@@ -453,25 +455,19 @@ class GrafanaApiProcessor(Processor):
             Dict containing list of available label values
         """
         try:
-            url = f'{self.__host}/api/datasources/proxy/uid/{datasource_uid}/api/v1/label/{label_name}/values'
+            url = f"{self.__host}/api/datasources/proxy/uid/{datasource_uid}/api/v1/label/{label_name}/values"
             params = {}
 
             if metric_match_filter:
-                params['match[]'] = metric_match_filter
+                params["match[]"] = metric_match_filter
 
             logger.info(f"Fetching label values for: {label_name} from Prometheus API")
 
-            response = requests.get(
-                url, 
-                headers=self.headers, 
-                params=params, 
-                verify=self.__ssl_verify,
-                timeout=20
-            )
-            
+            response = requests.get(url, headers=self.headers, params=params, verify=self.__ssl_verify, timeout=20)
+
             if response and response.status_code == 200:
-                label_values = response.json().get('data', [])
-                
+                label_values = response.json().get("data", [])
+
                 return {
                     "status": "success",
                     "datasource_uid": datasource_uid,
@@ -481,7 +477,9 @@ class GrafanaApiProcessor(Processor):
                 }
             else:
                 status_code = response.status_code if response else None
-                error_msg = f"Failed to fetch label values for {label_name}. Status: {status_code}, Response: {response.text if response else 'No response'}"
+                error_msg = (
+                    f"Failed to fetch label values for {label_name}. Status: {status_code}, Response: {response.text if response else 'No response'}"
+                )
                 logger.error(error_msg)
                 raise Exception(error_msg)
 
@@ -771,5 +769,3 @@ class GrafanaApiProcessor(Processor):
         except Exception as e:
             logger.error(f"Error executing panel query: {e}")
             return {"error": str(e)}
-
-
